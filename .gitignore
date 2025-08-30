@@ -34,4 +34,4 @@ coverage
 .nyc_output
 
 # PWA
-dev-dist
+dev-dist.husky/_
