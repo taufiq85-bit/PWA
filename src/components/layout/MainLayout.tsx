@@ -12,12 +12,12 @@ interface MainLayoutProps {
   currentPath?: string
 }
 
-export function MainLayout({ 
-  children, 
-  userRole, 
-  userName = "User", 
+export function MainLayout({
+  children,
+  userRole,
+  userName = 'User',
   userAvatar,
-  currentPath 
+  currentPath,
 }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -32,8 +32,8 @@ export function MainLayout({
         {/* Mobile Sidebar Overlay */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 lg:hidden">
-            <div 
-              className="fixed inset-0 bg-black/50" 
+            <div
+              className="fixed inset-0 bg-black/50"
               onClick={() => setSidebarOpen(false)}
             />
             <div className="fixed left-0 top-0 h-full">
@@ -44,17 +44,15 @@ export function MainLayout({
 
         {/* Main Content */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Header 
+          <Header
             onMenuClick={() => setSidebarOpen(!sidebarOpen)}
             userName={userName}
             userRole={userRole}
             avatarUrl={userAvatar}
           />
-          
+
           <main className="flex-1 overflow-auto">
-            <div className="container mx-auto p-4 lg:p-6">
-              {children}
-            </div>
+            <div className="container mx-auto p-4 lg:p-6">{children}</div>
           </main>
         </div>
       </div>

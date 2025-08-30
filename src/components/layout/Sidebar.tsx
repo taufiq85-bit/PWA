@@ -1,21 +1,21 @@
 // src/components/layout/Sidebar.tsx
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { 
-  LayoutDashboard, 
-  Users, 
-  FlaskConical, 
-  Wrench, 
-  Calendar, 
-  FileQuestion, 
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import {
+  LayoutDashboard,
+  Users,
+  FlaskConical,
+  Wrench,
+  Calendar,
+  FileQuestion,
   Megaphone,
   BarChart3,
   BookOpen,
   GraduationCap,
   ClipboardList,
-  Settings
-} from "lucide-react"
-import { cn } from "@/lib/utils"
+  Settings,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface SidebarItem {
   icon: React.ElementType
@@ -63,24 +63,44 @@ const menuItems: Record<SidebarProps['userRole'], SidebarItem[]> = {
   laboran: [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/laboran' },
     { icon: Wrench, label: 'Inventaris', href: '/laboran/inventaris' },
-    { icon: ClipboardList, label: 'Persetujuan', href: '/laboran/persetujuan', badge: 5 },
-    { icon: FlaskConical, label: 'Laboratorium', href: '/laboran/laboratorium' },
+    {
+      icon: ClipboardList,
+      label: 'Persetujuan',
+      href: '/laboran/persetujuan',
+      badge: 5,
+    },
+    {
+      icon: FlaskConical,
+      label: 'Laboratorium',
+      href: '/laboran/laboratorium',
+    },
     { icon: BarChart3, label: 'Laporan', href: '/laboran/laporan' },
-  ]
+  ],
 }
 
-export function Sidebar({ userRole, currentPath = '', className }: SidebarProps) {
+export function Sidebar({
+  userRole,
+  currentPath = '',
+  className,
+}: SidebarProps) {
   const items = menuItems[userRole] || []
 
   return (
-    <div className={cn("flex h-full w-64 flex-col border-r bg-background", className)}>
+    <div
+      className={cn(
+        'flex h-full w-64 flex-col border-r bg-background',
+        className
+      )}
+    >
       {/* Logo Section */}
       <div className="flex h-16 items-center border-b px-4">
         <div className="flex items-center gap-2">
           <FlaskConical className="h-6 w-6 text-blue-600" />
           <div>
             <h2 className="text-sm font-semibold">SI Praktikum</h2>
-            <p className="text-xs text-muted-foreground uppercase">{userRole}</p>
+            <p className="text-xs text-muted-foreground uppercase">
+              {userRole}
+            </p>
           </div>
         </div>
       </div>
@@ -90,14 +110,14 @@ export function Sidebar({ userRole, currentPath = '', className }: SidebarProps)
         {items.map((item) => {
           const isActive = currentPath === item.href
           const Icon = item.icon
-          
+
           return (
             <Button
               key={item.href}
-              variant={isActive ? "default" : "ghost"}
+              variant={isActive ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start gap-3 text-left",
-                isActive && "bg-primary text-primary-foreground"
+                'w-full justify-start gap-3 text-left',
+                isActive && 'bg-primary text-primary-foreground'
               )}
               asChild
             >
@@ -105,7 +125,10 @@ export function Sidebar({ userRole, currentPath = '', className }: SidebarProps)
                 <Icon className="h-4 w-4" />
                 <span className="flex-1">{item.label}</span>
                 {item.badge && (
-                  <Badge variant={isActive ? "secondary" : "default"} className="ml-auto">
+                  <Badge
+                    variant={isActive ? 'secondary' : 'default'}
+                    className="ml-auto"
+                  >
                     {item.badge}
                   </Badge>
                 )}

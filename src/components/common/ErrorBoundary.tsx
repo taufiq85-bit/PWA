@@ -1,8 +1,14 @@
 // src/components/common/ErrorBoundary.tsx
 import { Component, ErrorInfo, ReactNode } from 'react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertTriangle, RotateCcw } from "lucide-react"
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { AlertTriangle, RotateCcw } from 'lucide-react'
 
 interface Props {
   children?: ReactNode
@@ -17,7 +23,7 @@ interface State {
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    hasError: false,
   }
 
   public static getDerivedStateFromError(error: Error): State {
@@ -48,7 +54,8 @@ export class ErrorBoundary extends Component<Props, State> {
               </div>
               <CardTitle>Oops! Something went wrong</CardTitle>
               <CardDescription>
-                Terjadi kesalahan yang tidak terduga. Silakan refresh halaman atau hubungi administrator.
+                Terjadi kesalahan yang tidak terduga. Silakan refresh halaman
+                atau hubungi administrator.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -60,7 +67,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </div>
               )}
               <div className="flex gap-2">
-                <Button 
+                <Button
                   onClick={this.handleReset}
                   variant="outline"
                   className="flex-1"
@@ -68,7 +75,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Try Again
                 </Button>
-                <Button 
+                <Button
                   onClick={() => window.location.reload()}
                   className="flex-1"
                 >
