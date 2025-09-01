@@ -36,15 +36,15 @@ export function Header({
           <Menu className="h-6 w-6" />
         </Button>
 
-       <div className="flex items-center gap-2">
-  <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded flex items-center justify-center">
-    <span className="text-white font-bold text-sm">SI</span>
-  </div>
-  <div className="hidden sm:block">
-    <h1 className="text-lg font-semibold">SI Praktikum</h1>
-    <p className="text-xs text-muted-foreground">AKBID Mega Buana</p>
-  </div>
-</div>
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded flex items-center justify-center">
+            <span className="text-white font-bold text-sm">SI</span>
+          </div>
+          <div className="hidden sm:block">
+            <h1 className="text-lg font-semibold">SI Praktikum</h1>
+            <p className="text-xs text-muted-foreground">AKBID Mega Buana</p>
+          </div>
+        </div>
       </div>
 
       {/* Right Section */}

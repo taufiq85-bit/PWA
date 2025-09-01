@@ -59,4 +59,16 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    port: 5173,
+    host: '127.0.0.1', // Instead of 'localhost'
+    hmr: {
+      port: 5173,
+      host: '127.0.0.1'
+    }
+  },
+  // Tambahkan bagian ini untuk menaikkan batas peringatan
+  build: {
+    chunkSizeWarningLimit: 1000, // Batas diubah menjadi 1000 kB
+  },
 })
