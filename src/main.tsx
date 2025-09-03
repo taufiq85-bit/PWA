@@ -1,10 +1,22 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
+// src/main.tsx
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
+import './index.css'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
+// Context Providers
+import { ThemeProvider } from '@/context/ThemeContext'
+import { NotificationProvider } from '@/context/NotificationContext'
+import { OfflineProvider } from '@/context/OfflineContext'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <ThemeProvider defaultTheme="system">
+      <NotificationProvider maxNotifications={5}>
+        <OfflineProvider>
+          <App />
+        </OfflineProvider>
+      </NotificationProvider>
+    </ThemeProvider>
+  </React.StrictMode>
 )

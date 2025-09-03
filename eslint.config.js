@@ -1,4 +1,3 @@
-// eslint.config.js - Updated
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -7,14 +6,22 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config([
   {
-    ignores: ['dist/**', 'node_modules/**']
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'public/**',
+      'coverage/**',
+      '*.config.js',
+      '*.config.ts',
+      '!eslint.config.js',
+      '!vite.config.ts',
+      'scripts/**',
+      '.husky/**',
+    ],
   },
   {
     files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      ...tseslint.configs.recommended,
-    ],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -29,23 +36,37 @@ export default tseslint.config([
         'warn',
         { allowConstantExport: true },
       ],
-      // Fix untuk errors Anda
-      '@typescript-eslint/no-explicit-any': 'warn', // Ubah ke warning
-    }
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+        },
+      ],
+    },
   },
-  // Override untuk Shadcn/ui components
+  // Override untuk Shadcn/ui components - disable strict rules
   {
     files: ['src/components/ui/**/*.{ts,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
-    }
+    },
   },
-  // Override untuk lib files
+  // Override untuk test files
   {
-    files: ['src/lib/**/*.{ts,tsx}'],
+    files: ['src/__tests__/**/*.{ts,tsx}'],
     rules: {
+      'react-refresh/only-export-components': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
-    }
-  }
+    },
+  },
+  // Override untuk context files
+  {
+    files: ['src/context/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

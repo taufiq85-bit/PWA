@@ -1,7 +1,25 @@
+/* src/index.css - Enhanced dengan Responsive Framework */
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
+
+/* Custom responsive variants untuk AKBID System */
+@custom-variant mobile-sm (width < 375px);
+@custom-variant mobile (width >= 375px);
+@custom-variant tablet-sm (width >= 640px);
+@custom-variant tablet (width >= 768px);
+@custom-variant desktop-sm (width >= 1024px);
+@custom-variant desktop (width >= 1280px);
+@custom-variant desktop-lg (width >= 1536px);
+@custom-variant desktop-xl (width >= 1920px);
+
+/* Orientation variants */
+@custom-variant portrait ((orientation: portrait));
+@custom-variant landscape ((orientation: landscape));
+
+/* Print variant */
+@custom-variant print (@media print);
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -39,6 +57,57 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* AKBID Medical Theme Colors */
+  --color-medical-50: var(--medical-50);
+  --color-medical-100: var(--medical-100);
+  --color-medical-200: var(--medical-200);
+  --color-medical-300: var(--medical-300);
+  --color-medical-400: var(--medical-400);
+  --color-medical-500: var(--medical-500);
+  --color-medical-600: var(--medical-600);
+  --color-medical-700: var(--medical-700);
+  --color-medical-800: var(--medical-800);
+  --color-medical-900: var(--medical-900);
+  --color-medical-950: var(--medical-950);
+
+  /* Status Colors */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  /* Responsive Spacing System */
+  --spacing-mobile-padding: 1rem;
+  --spacing-tablet-padding: 1.5rem;
+  --spacing-desktop-padding: 2rem;
+  --spacing-desktop-lg-padding: 3rem;
+
+  /* Responsive Typography Scale */
+  --text-xs-mobile: 0.75rem;
+  --text-sm-mobile: 0.875rem;
+  --text-base-mobile: 1rem;
+  --text-lg-mobile: 1.125rem;
+  --text-xl-mobile: 1.25rem;
+  --text-2xl-mobile: 1.5rem;
+  --text-3xl-mobile: 1.875rem;
+
+  --text-xs-desktop: 0.875rem;
+  --text-sm-desktop: 1rem;
+  --text-base-desktop: 1.125rem;
+  --text-lg-desktop: 1.25rem;
+  --text-xl-desktop: 1.5rem;
+  --text-2xl-desktop: 1.875rem;
+  --text-3xl-desktop: 2.25rem;
+
+  /* Component specific responsive values */
+  --header-height-mobile: 4rem;
+  --header-height-desktop: 4.5rem;
+  --sidebar-width-collapsed: 4rem;
+  --sidebar-width-expanded: 16rem;
+  --sidebar-width-mobile: 20rem;
 }
 
 :root {
@@ -49,8 +118,11 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+
+  /* AKBID Medical Primary Colors - Blue Medical Theme */
+  --primary: oklch(0.68 0.15 235);
   --primary-foreground: oklch(0.985 0 0);
+
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -60,20 +132,47 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.68 0.15 235);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
+
+  /* Sidebar - AKBID Theme */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.68 0.15 235);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* AKBID Medical Color Palette */
+  --medical-50: oklch(0.98 0.02 235);
+  --medical-100: oklch(0.95 0.05 235);
+  --medical-200: oklch(0.9 0.08 235);
+  --medical-300: oklch(0.82 0.12 235);
+  --medical-400: oklch(0.68 0.15 235);
+  --medical-500: oklch(0.58 0.18 235);
+  --medical-600: oklch(0.48 0.2 235);
+  --medical-700: oklch(0.42 0.18 235);
+  --medical-800: oklch(0.36 0.15 235);
+  --medical-900: oklch(0.3 0.12 235);
+  --medical-950: oklch(0.24 0.08 235);
+
+  /* Status Colors */
+  --success: oklch(0.65 0.15 145);
+  --success-foreground: oklch(0.98 0 0);
+  --warning: oklch(0.75 0.15 85);
+  --warning-foreground: oklch(0.98 0 0);
+  --info: oklch(0.68 0.15 235);
+  --info-foreground: oklch(0.98 0 0);
+
+  /* Theme Transition */
+  --theme-transition-duration: 300ms;
+  --theme-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark {
@@ -83,8 +182,11 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+
+  /* Dark Mode Primary - Lighter medical blue */
+  --primary: oklch(0.78 0.12 235);
+  --primary-foreground: oklch(0.145 0 0);
+
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -94,27 +196,253 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.78 0.12 235);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
+
+  /* Dark Mode Sidebar */
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.78 0.12 235);
+  --sidebar-primary-foreground: oklch(0.145 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Dark Mode Medical Colors */
+  --medical-50: oklch(0.24 0.08 235);
+  --medical-100: oklch(0.3 0.12 235);
+  --medical-200: oklch(0.36 0.15 235);
+  --medical-300: oklch(0.42 0.18 235);
+  --medical-400: oklch(0.58 0.18 235);
+  --medical-500: oklch(0.68 0.15 235);
+  --medical-600: oklch(0.78 0.12 235);
+  --medical-700: oklch(0.82 0.12 235);
+  --medical-800: oklch(0.9 0.08 235);
+  --medical-900: oklch(0.95 0.05 235);
+  --medical-950: oklch(0.98 0.02 235);
+
+  /* Dark Mode Status Colors */
+  --success: oklch(0.75 0.12 145);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.85 0.12 85);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.78 0.12 235);
+  --info-foreground: oklch(0.145 0 0);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    transition-property:
+      background-color, border-color, color, fill, stroke, opacity, box-shadow,
+      transform;
+    transition-duration: var(--theme-transition-duration);
+    transition-timing-function: var(--theme-transition-timing);
   }
+
   body {
     @apply bg-background text-foreground;
+    font-family:
+      'Inter',
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      sans-serif;
+  }
+
+  /* Responsive Typography */
+  h1 {
+    @apply text-2xl font-bold;
+    @apply tablet:text-3xl;
+    @apply desktop:text-4xl;
+  }
+
+  h2 {
+    @apply text-xl font-semibold;
+    @apply tablet:text-2xl;
+    @apply desktop:text-3xl;
+  }
+
+  h3 {
+    @apply text-lg font-medium;
+    @apply tablet:text-xl;
+    @apply desktop:text-2xl;
+  }
+
+  /* Smooth theme transitions untuk semua elemen */
+  .theme-transition {
+    transition-property: all;
+    transition-duration: var(--theme-transition-duration);
+    transition-timing-function: var(--theme-transition-timing);
+  }
+
+  /* AKBID Medical specific styles */
+  .medical-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(var(--medical-500)) 0%,
+      oklch(var(--medical-600)) 100%
+    );
+  }
+
+  .medical-text-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(var(--medical-600)),
+      oklch(var(--medical-400))
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Responsive Utility Classes */
+@layer utilities {
+  /* Responsive Padding System */
+  .container-padding {
+    @apply px-4;
+    @apply tablet-sm:px-6;
+    @apply desktop:px-8;
+    @apply desktop-lg:px-12;
+  }
+
+  /* Responsive Text Sizes */
+  .text-responsive-xs {
+    font-size: var(--text-xs-mobile);
+    @apply desktop:text-[var(--text-xs-desktop)];
+  }
+
+  .text-responsive-sm {
+    font-size: var(--text-sm-mobile);
+    @apply desktop:text-[var(--text-sm-desktop)];
+  }
+
+  .text-responsive-base {
+    font-size: var(--text-base-mobile);
+    @apply desktop:text-[var(--text-base-desktop)];
+  }
+
+  .text-responsive-lg {
+    font-size: var(--text-lg-mobile);
+    @apply desktop:text-[var(--text-lg-desktop)];
+  }
+
+  /* Responsive Grid Systems */
+  .grid-responsive-auto {
+    @apply grid grid-cols-1;
+    @apply tablet-sm:grid-cols-2;
+    @apply desktop-sm:grid-cols-3;
+    @apply desktop-lg:grid-cols-4;
+  }
+
+  .grid-responsive-2-4 {
+    @apply grid grid-cols-1;
+    @apply tablet:grid-cols-2;
+    @apply desktop-lg:grid-cols-4;
+  }
+
+  .grid-responsive-cards {
+    @apply grid grid-cols-1 gap-4;
+    @apply tablet-sm:grid-cols-2 tablet-sm:gap-6;
+    @apply desktop-sm:grid-cols-3;
+    @apply desktop-lg:grid-cols-4;
+  }
+
+  /* Responsive Spacing */
+  .gap-responsive {
+    @apply gap-3;
+    @apply tablet:gap-4;
+    @apply desktop:gap-6;
+    @apply desktop-lg:gap-8;
+  }
+
+  .space-y-responsive > * + * {
+    @apply mt-3;
+    @apply tablet:mt-4;
+    @apply desktop:mt-6;
+  }
+
+  /* Responsive Widths */
+  .w-responsive-full {
+    @apply w-full;
+    @apply desktop-sm:w-auto;
+  }
+
+  .w-responsive-sidebar {
+    width: var(--sidebar-width-mobile);
+    @apply desktop:w-[var(--sidebar-width-expanded)];
+  }
+
+  /* Mobile-first Button Sizes */
+  .btn-responsive {
+    @apply px-3 py-2 text-sm;
+    @apply tablet:px-4 tablet:py-2 tablet:text-base;
+    @apply desktop:px-6 desktop:py-3;
+  }
+
+  /* Responsive Visibility */
+  .show-mobile {
+    @apply block;
+    @apply tablet:hidden;
+  }
+
+  .show-tablet {
+    @apply hidden;
+    @apply tablet:block;
+    @apply desktop-sm:hidden;
+  }
+
+  .show-desktop {
+    @apply hidden;
+    @apply desktop-sm:block;
+  }
+
+  .hide-mobile {
+    @apply hidden;
+    @apply tablet:block;
+  }
+
+  /* Component Heights */
+  .h-header {
+    height: var(--header-height-mobile);
+    @apply desktop:h-[var(--header-height-desktop)];
+  }
+
+  .min-h-screen-header {
+    min-height: calc(100vh - var(--header-height-mobile));
+    @apply desktop:min-h-[calc(100vh-var(--header-height-desktop))];
+  }
+
+  /* Custom scrollbar untuk konsistensi theme */
+  .scrollbar-medical::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  .scrollbar-medical::-webkit-scrollbar-track {
+    @apply bg-medical-100 dark:bg-medical-900;
+  }
+
+  .scrollbar-medical::-webkit-scrollbar-thumb {
+    @apply bg-medical-300 dark:bg-medical-700 rounded-full;
+  }
+
+  .scrollbar-medical::-webkit-scrollbar-thumb:hover {
+    @apply bg-medical-400 dark:bg-medical-600;
+  }
+
+  /* Print Styles */
+  .print-hidden {
+    @apply print:hidden;
+  }
+
+  .print-visible {
+    @apply hidden;
+    @apply print:block;
   }
 }

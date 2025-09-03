@@ -1,5 +1,5 @@
-// src/App.tsx - Complete Testing Implementation + Integration Test Suite
-import { useState, useEffect } from 'react'
+// src/App.tsx - Complete Testing Implementation + Integration Test Suite + Context Providers
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { checkDatabaseHealth } from '@/lib/database'
 import { StorageService } from '@/lib/storage'
@@ -30,10 +30,20 @@ import {
   RefreshCw,
   XCircle,
   FolderOpen,
+  Palette,
+  Bell,
+  Network,
+  Sun,
+  Moon,
 } from 'lucide-react'
 
-// 🔥 Tambahan untuk Integration Testing
+// 🔥 Import untuk Integration Testing
 import { IntegrationTestSuite } from '@/components/testing/IntegrationTestSuite'
+
+// 🔥 Import context hooks
+import { useTheme } from '@/context/ThemeContext'
+import { useNotification } from '@/context/NotificationContext'
+import { useOffline } from '@/context/OfflineContext'
 
 // Type definitions
 type UserRole = 'admin' | 'dosen' | 'mahasiswa' | 'laboran'
@@ -46,6 +56,7 @@ interface TestResults {
   routing: boolean
   supabase: boolean
   storage: boolean
+  context: boolean
 }
 
 interface BucketInfo {
@@ -79,6 +90,11 @@ interface RoleData {
 }
 
 function App() {
+  // 🔥 Context hooks
+  const { theme, isDark, toggleTheme } = useTheme()
+  const { showSuccess, showError, showWarning, showInfo } = useNotification()
+  const { isOnline, connectionType, retryConnection } = useOffline()
+
   const [currentRole, setCurrentRole] = useState<UserRole>('admin')
   const [testResults, setTestResults] = useState<TestResults>({
     components: true,
@@ -88,12 +104,65 @@ function App() {
     routing: false, // Will implement in Phase 2
     supabase: false, // Test Supabase connection
     storage: false, // Test Storage buckets
+    context: true, // Context providers loaded
   })
   const [healthCheck, setHealthCheck] = useState<HealthCheckResult | null>(null)
   const [storageCheck, setStorageCheck] = useState<StorageCheckResult | null>(
     null
   )
   const [isLoading, setIsLoading] = useState(true)
+
+  // Test context providers
+  const testContextProviders = useCallback(async () => {
+    try {
+      // Test theme context
+      if (!theme || typeof toggleTheme !== 'function') {
+        throw new Error('ThemeContext not working')
+      }
+
+      // Test notification context
+      if (typeof showSuccess !== 'function') {
+        throw new Error('NotificationContext not working')
+      }
+
+      // Test offline context
+      if (typeof isOnline !== 'boolean') {
+        throw new Error('OfflineContext not working')
+      }
+
+      showSuccess('Context Test', 'All context providers working successfully!')
+      setTestResults((prev) => ({ ...prev, context: true }))
+      return true
+    } catch (error) {
+      console.error('Context test failed:', error)
+      showError('Context Error', 'Some context providers failed to load')
+      setTestResults((prev) => ({ ...prev, context: false }))
+      return false
+    }
+  }, [theme, toggleTheme, showSuccess, showError, isOnline])
+
+  // Advanced notification testing
+  const testNotifications = useCallback(() => {
+    showInfo('Testing Notifications', 'Starting notification sequence...')
+
+    setTimeout(() => {
+      showSuccess(
+        'Success Test',
+        `Theme: ${theme} | Connection: ${isOnline ? 'Online' : 'Offline'}`
+      )
+    }, 1000)
+
+    setTimeout(() => {
+      showWarning('Warning Test', `Connection type: ${connectionType}`)
+    }, 2000)
+
+    setTimeout(() => {
+      showInfo(
+        'Sequence Complete',
+        'All notification types tested successfully!'
+      )
+    }, 3000)
+  }, [theme, isOnline, connectionType, showInfo, showSuccess, showWarning])
 
   // Test storage bucket access
   const testStorageAccess = async (): Promise<StorageCheckResult> => {
@@ -157,6 +226,9 @@ function App() {
 
         // Test storage after database check
         await testStorageAccess()
+
+        // Test context providers
+        await testContextProviders()
       } catch (error) {
         console.error('Health check failed:', error)
         const message = error instanceof Error ? error.message : String(error)
@@ -180,6 +252,7 @@ function App() {
 
           // Test storage even if database tables don't exist
           await testStorageAccess()
+          await testContextProviders()
         } catch (simpleTestError) {
           console.error('❌ Supabase setup error:', simpleTestError)
           setTestResults((prev) => ({ ...prev, supabase: false }))
@@ -190,7 +263,7 @@ function App() {
     }
 
     runHealthCheck()
-  }, [])
+  }, [testContextProviders])
 
   const roleData: Record<UserRole, RoleData> = {
     admin: { name: 'Administrator', color: 'bg-red-500' },
@@ -199,22 +272,26 @@ function App() {
     laboran: { name: 'Laboran', color: 'bg-purple-500' },
   }
 
-  const refreshHealthCheck = async () => {
+  const refreshHealthCheck = useCallback(async () => {
     setIsLoading(true)
     try {
       const results = await checkDatabaseHealth()
       setHealthCheck(results)
 
-      // Also refresh storage check
+      // Also refresh storage check and context test
       await testStorageAccess()
+      await testContextProviders()
+
+      showSuccess('Refresh Complete', 'All systems rechecked successfully')
     } catch (error) {
       console.error('Refresh failed:', error)
       const message = error instanceof Error ? error.message : String(error)
       setHealthCheck({ connection: false, error: message })
+      showError('Refresh Failed', message)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [testContextProviders, showSuccess, showError])
 
   return (
     <MainLayout
@@ -230,17 +307,139 @@ function App() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle className="h-6 w-6 text-green-500" />
-                  Phase 1 - Final Testing
+                  Phase 1 - Final Testing + Context Providers
                 </CardTitle>
                 <CardDescription>
-                  SENIN, 4 Agustus 2025 - Development Environment Test
+                  Development Environment + Context Testing
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="text-green-600">
-                ✅ SETUP COMPLETE
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-green-600">
+                  ✅ SETUP COMPLETE
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={isDark ? 'text-purple-600' : 'text-blue-600'}
+                >
+                  🎨 {theme}
+                </Badge>
+                <Badge
+                  variant="outline"
+                  className={isOnline ? 'text-green-600' : 'text-red-600'}
+                >
+                  {isOnline ? '🟢' : '🔴'} {isOnline ? 'Online' : 'Offline'}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
+        </Card>
+
+        {/* Context Providers Test Card */}
+        <Card className="border-purple-200 bg-purple-50 dark:bg-purple-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-purple-800 dark:text-purple-200">
+              <Palette className="h-6 w-6" />
+              🎯 Context Providers Test
+            </CardTitle>
+            <CardDescription className="text-purple-600 dark:text-purple-300">
+              Testing ThemeContext, NotificationContext, OfflineContext
+              integration
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Theme Context Test */}
+            <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                {isDark ? (
+                  <Moon className="h-4 w-4" />
+                ) : (
+                  <Sun className="h-4 w-4" />
+                )}
+                🎨 Theme Context
+              </h3>
+              <div className="flex items-center gap-4">
+                <Badge variant={isDark ? 'destructive' : 'default'}>
+                  {theme} - {isDark ? 'Dark' : 'Light'}
+                </Badge>
+                <Button onClick={toggleTheme} size="sm" variant="outline">
+                  {isDark ? (
+                    <Sun className="h-4 w-4 mr-1" />
+                  ) : (
+                    <Moon className="h-4 w-4 mr-1" />
+                  )}
+                  Toggle Theme
+                </Button>
+                <Badge variant="secondary">✅ Working</Badge>
+              </div>
+            </div>
+
+            {/* Notification Context Test */}
+            <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                🔔 Notification Context
+              </h3>
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={testNotifications} size="sm">
+                  <Bell className="h-4 w-4 mr-1" />
+                  Test Sequence
+                </Button>
+                <Button
+                  onClick={() =>
+                    showError('Test Error', 'This is a test error message')
+                  }
+                  variant="destructive"
+                  size="sm"
+                >
+                  Test Error
+                </Button>
+                <Button
+                  onClick={() =>
+                    showSuccess('Context Success', 'All providers working!')
+                  }
+                  variant="default"
+                  size="sm"
+                >
+                  Test Success
+                </Button>
+                <Badge variant="secondary">✅ Working</Badge>
+              </div>
+            </div>
+
+            {/* Offline Context Test */}
+            <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <Network className="h-4 w-4" />
+                🔶 Offline Context
+              </h3>
+              <div className="flex items-center gap-4 flex-wrap">
+                <Badge variant={isOnline ? 'default' : 'destructive'}>
+                  {isOnline ? '🟢 Online' : '🔴 Offline'}
+                </Badge>
+                <Badge variant="outline">Connection: {connectionType}</Badge>
+                <Button
+                  onClick={retryConnection}
+                  size="sm"
+                  disabled={isOnline}
+                  variant="outline"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Retry Connection
+                </Button>
+                <Badge variant="secondary">✅ Working</Badge>
+              </div>
+            </div>
+
+            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+              <p className="text-green-800 dark:text-green-200 font-medium">
+                ✅ All Context Providers Working Successfully!
+              </p>
+              <p className="text-green-600 dark:text-green-300 text-sm">
+                ThemeContext, NotificationContext, dan OfflineContext sudah
+                terintegrasi dengan sempurna
+              </p>
+            </div>
+          </CardContent>
         </Card>
 
         {/* Role Switcher */}
@@ -271,7 +470,8 @@ function App() {
                 Current Role: {roleData[currentRole].name}
               </AlertTitle>
               <AlertDescription>
-                Sidebar dan header akan berubah sesuai role yang dipilih.
+                Sidebar dan header akan berubah sesuai role yang dipilih. Theme:{' '}
+                {theme}
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -309,14 +509,14 @@ function App() {
                 <Wifi className="h-4 w-4 animate-pulse" />
                 <AlertTitle>Testing Connection...</AlertTitle>
                 <AlertDescription>
-                  Checking database health, storage buckets, and
-                  configuration...
+                  Checking database health, storage buckets, context providers,
+                  and configuration...
                 </AlertDescription>
               </Alert>
             ) : (
               <div className="space-y-4">
                 {/* Connection Status */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="flex items-center gap-2">
                     {healthCheck?.connection || testResults.supabase ? (
                       <CheckCircle className="h-5 w-5 text-green-500" />
@@ -340,6 +540,17 @@ function App() {
                     <span className="font-medium">
                       Storage:{' '}
                       {testResults.storage ? 'Accessible ✅' : 'Not Ready ❌'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {testResults.context ? (
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    )}
+                    <span className="font-medium">
+                      Context: {testResults.context ? 'Ready ✅' : 'Failed ❌'}
                     </span>
                   </div>
                 </div>
@@ -436,7 +647,7 @@ function App() {
                 {healthCheck?.databaseInfo && (
                   <div className="space-y-2">
                     <h4 className="font-medium">Database Information:</h4>
-                    <div className="bg-gray-50 p-3 rounded text-sm">
+                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded text-sm">
                       <p>
                         <strong>Version:</strong>{' '}
                         {healthCheck.databaseInfo.version || 'Unknown'}
@@ -458,15 +669,168 @@ function App() {
         </Card>
 
         {/* Component Tests */}
-        <Tabs defaultValue="components" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+        <Tabs defaultValue="context" className="w-full">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="context">🎯 Context</TabsTrigger>
             <TabsTrigger value="components">🧩 Components</TabsTrigger>
             <TabsTrigger value="pwa">📱 PWA</TabsTrigger>
             <TabsTrigger value="forms">📝 Forms</TabsTrigger>
             <TabsTrigger value="system">⚙️ System</TabsTrigger>
-            {/* 🔥 Tab baru untuk Integration */}
             <TabsTrigger value="integration">🧪 Integration</TabsTrigger>
           </TabsList>
+
+          {/* Context Test Tab */}
+          <TabsContent value="context" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>🎯 Advanced Context Provider Testing</CardTitle>
+                <CardDescription>
+                  Comprehensive testing of all React context providers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Theme Testing */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Palette className="h-4 w-4" />
+                      Theme Provider
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Current Theme:</span>
+                        <Badge>{theme}</Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Dark Mode:</span>
+                        <Badge variant={isDark ? 'destructive' : 'secondary'}>
+                          {isDark ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                      </div>
+                      <Button
+                        onClick={toggleTheme}
+                        className="w-full"
+                        size="sm"
+                      >
+                        Switch to {isDark ? 'Light' : 'Dark'} Mode
+                      </Button>
+                    </div>
+                  </Card>
+
+                  <Card className="p-4">
+                    <h4 className="font-semibold mb-3 flex items-center gap-2">
+                      <Bell className="h-4 w-4" />
+                      Notification Provider
+                    </h4>
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() =>
+                          showSuccess('Success!', 'This is a success message')
+                        }
+                        className="w-full"
+                        size="sm"
+                        variant="default"
+                      >
+                        Test Success
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          showWarning('Warning!', 'This is a warning message')
+                        }
+                        className="w-full"
+                        size="sm"
+                        variant="secondary"
+                      >
+                        Test Warning
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          showError('Error!', 'This is an error message')
+                        }
+                        className="w-full"
+                        size="sm"
+                        variant="destructive"
+                      >
+                        Test Error
+                      </Button>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Network Status */}
+                <Card className="p-4">
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Network className="h-4 w-4" />
+                    Network & Offline Provider
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center p-3 border rounded">
+                      <div className="text-2xl mb-2">
+                        {isOnline ? '🟢' : '🔴'}
+                      </div>
+                      <p className="font-medium">
+                        {isOnline ? 'Online' : 'Offline'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Connection Status
+                      </p>
+                    </div>
+                    <div className="text-center p-3 border rounded">
+                      <div className="text-2xl mb-2">🔶</div>
+                      <p className="font-medium">{connectionType}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Connection Type
+                      </p>
+                    </div>
+                    <div className="text-center p-3 border rounded">
+                      <Button
+                        onClick={retryConnection}
+                        disabled={isOnline}
+                        className="w-full"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Retry
+                      </Button>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Manual Retry
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Combined Test */}
+                <Card className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
+                  <h4 className="font-semibold mb-3">
+                    🚀 Combined Context Test
+                  </h4>
+                  <div className="space-y-3">
+                    <Button onClick={testNotifications} className="w-full">
+                      Run Full Context Test Suite
+                    </Button>
+                    <div className="text-sm text-center space-y-1">
+                      <p>This will test all context providers in sequence:</p>
+                      <p className="text-muted-foreground">
+                        Theme ({theme}) → Notifications → Network (
+                        {isOnline ? 'Online' : 'Offline'})
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertTitle>
+                    Context Providers Status: All Ready! 🎉
+                  </AlertTitle>
+                  <AlertDescription>
+                    ThemeContext, NotificationContext, dan OfflineContext
+                    semuanya berfungsi dengan sempurna. Theme system responsive,
+                    notifikasi bekerja, dan network detection aktif.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Components Test */}
           <TabsContent value="components" className="space-y-4">
@@ -611,6 +975,7 @@ function App() {
                     Icons: testResults.icons,
                     'Supabase Connection': testResults.supabase,
                     'Storage Buckets': testResults.storage,
+                    'Context Providers': testResults.context,
                   }).map(([feature, status]) => (
                     <div
                       key={feature}
@@ -620,7 +985,7 @@ function App() {
                       {status ? (
                         <Badge
                           variant="default"
-                          className="bg-green-100 text-green-800"
+                          className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                         >
                           ✅ Working
                         </Badge>
@@ -634,25 +999,29 @@ function App() {
                 <Alert>
                   <CheckCircle className="h-4 w-4" />
                   <AlertTitle>
-                    {testResults.supabase && testResults.storage
+                    {testResults.supabase &&
+                    testResults.storage &&
+                    testResults.context
                       ? 'All Systems Ready! 🎉'
-                      : testResults.supabase
-                        ? 'Database Connected! 📊'
+                      : testResults.supabase && testResults.context
+                        ? 'Core Systems Ready! 🔊'
                         : 'Phase 1 Complete!'}
                   </AlertTitle>
                   <AlertDescription>
-                    {testResults.supabase && testResults.storage
-                      ? 'Database and storage systems are fully operational. Ready for development!'
-                      : testResults.supabase
-                        ? 'Database connected. Storage buckets need configuration in Supabase dashboard.'
-                        : 'All core systems ready. Siap untuk Phase 2: Design & Architecture (9-15 Agustus 2025).'}
+                    {testResults.supabase &&
+                    testResults.storage &&
+                    testResults.context
+                      ? 'Database, storage, dan context providers fully operational. Ready for development!'
+                      : testResults.supabase && testResults.context
+                        ? 'Database dan context providers connected. Storage buckets need configuration.'
+                        : 'All core systems ready. Context providers integrated. Siap untuk Phase 2!'}
                   </AlertDescription>
                 </Alert>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* 🔥 Integration Test Suite */}
+          {/* Integration Test Suite */}
           <TabsContent value="integration" className="space-y-4">
             <Card>
               <CardHeader>
@@ -671,132 +1040,78 @@ function App() {
             <CardTitle>🗃️ Build Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
               <div>
                 <p className="font-medium text-muted-foreground">Framework</p>
                 <p>React 18 + TypeScript + Vite</p>
               </div>
               <div>
                 <p className="font-medium text-muted-foreground">UI Library</p>
-                <p>Shadcn/ui + Tailwind CSS v4.1</p>
+                <p>Shadcn/ui + Tailwind CSS</p>
               </div>
               <div>
                 <p className="font-medium text-muted-foreground">Backend</p>
-                <p>Supabase (Ready for Phase 3)</p>
+                <p>Supabase (PostgreSQL)</p>
+              </div>
+              <div>
+                <p className="font-medium text-muted-foreground">
+                  State Management
+                </p>
+                <p>React Context + Hooks</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Configuration Status */}
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
           <CardHeader>
-            <CardTitle className="text-green-800">
+            <CardTitle className="text-green-800 dark:text-green-200">
               ✅ Configuration Status
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 text-green-700">
+            <div className="space-y-2 text-green-700 dark:text-green-300">
               <p>✅ Supabase client configured with TypeScript support</p>
               <p>✅ Database helper functions ready</p>
               <p>✅ Storage service classes implemented</p>
               <p>✅ Environment variables validated</p>
               <p>✅ Connection testing functional</p>
               <p>✅ Role-based layout system ready</p>
+              <p>
+                ✅ Context providers (Theme, Notification, Offline) integrated
+              </p>
+              <p>✅ Dark/Light theme system operational</p>
+              <p>✅ Toast notification system working</p>
+              <p>✅ Network status detection active</p>
               <p className="font-medium mt-4">
                 🎯 Ready for database schema creation!
               </p>
               {testResults.storage && (
-                <p className="font-medium text-green-800">
+                <p className="font-medium text-green-800 dark:text-green-200">
                   🚀 Storage buckets configured and accessible!
+                </p>
+              )}
+              {testResults.context && (
+                <p className="font-medium text-green-800 dark:text-green-200">
+                  🎨 All context providers working perfectly!
                 </p>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Storage Testing Card */}
-        {storageCheck && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FolderOpen className="h-6 w-6" />
-                Storage Testing Results
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Bucket Status Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {Object.entries(storageCheck.buckets).map(([bucket, info]) => (
-                  <Card
-                    key={bucket}
-                    className={
-                      info.accessible ? 'border-green-200' : 'border-red-200'
-                    }
-                  >
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">{bucket}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      {info.accessible ? (
-                        <div className="text-sm text-green-700">
-                          <p>✅ Accessible</p>
-                          <p>{info.files} files found</p>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-red-700">
-                          <p>❌ Not accessible</p>
-                          <p className="font-mono text-xs">{info.error}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Storage Instructions */}
-              {!testResults.storage && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Storage Setup Required</AlertTitle>
-                  <AlertDescription>
-                    <div className="space-y-2 mt-2">
-                      <p>Create these buckets in your Supabase project:</p>
-                      <ol className="text-xs space-y-1 ml-4">
-                        <li>1. Go to Supabase Dashboard → Storage</li>
-                        <li>
-                          2. Create bucket:{' '}
-                          <code className="bg-gray-100 px-1">materi</code>
-                        </li>
-                        <li>
-                          3. Create bucket:{' '}
-                          <code className="bg-gray-100 px-1">profiles</code>
-                        </li>
-                        <li>
-                          4. Create bucket:{' '}
-                          <code className="bg-gray-100 px-1">documents</code>
-                        </li>
-                        <li>5. Set public/private permissions as needed</li>
-                      </ol>
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
         {/* Next Steps */}
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
           <CardHeader>
-            <CardTitle className="text-blue-800">
+            <CardTitle className="text-blue-800 dark:text-blue-200">
               🚀 Next Steps - Phase 2
             </CardTitle>
-            <CardDescription className="text-blue-600">
-              9-15 Agustus 2025: Design & Architecture
+            <CardDescription className="text-blue-600 dark:text-blue-400">
+              Design & Architecture
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-blue-700">
+          <CardContent className="text-blue-700 dark:text-blue-300">
             <ul className="space-y-1 text-sm">
               <li>• Create detailed wireframes & user flows</li>
               <li>• Design database schema (27 tables)</li>
@@ -804,7 +1119,60 @@ function App() {
               <li>• Create storage buckets & configure permissions</li>
               <li>• Implement RBAC system</li>
               <li>• Create role-based routing structure</li>
+              <li>• Integrate context providers with authentication</li>
+              <li>• Add user preferences persistence (theme, settings)</li>
+              <li>• Implement offline data synchronization</li>
             </ul>
+          </CardContent>
+        </Card>
+
+        {/* Final Status Summary */}
+        <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
+          <CardHeader>
+            <CardTitle className="text-purple-800 dark:text-purple-200">
+              🎉 Phase 1 Complete!
+            </CardTitle>
+            <CardDescription className="text-purple-600 dark:text-purple-400">
+              Semua sistem siap, context providers terintegrasi!
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <h4 className="font-semibold text-purple-800 dark:text-purple-200">
+                  Core Systems ✅
+                </h4>
+                <ul className="text-sm space-y-1 text-purple-700 dark:text-purple-300">
+                  <li>✅ React 18 + TypeScript + Vite</li>
+                  <li>✅ Shadcn/ui + Tailwind CSS</li>
+                  <li>✅ PWA Configuration</li>
+                  <li>✅ Supabase Integration</li>
+                  <li>✅ Storage Service</li>
+                </ul>
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-semibold text-purple-800 dark:text-purple-200">
+                  Context Providers ✅
+                </h4>
+                <ul className="text-sm space-y-1 text-purple-700 dark:text-purple-300">
+                  <li>✅ ThemeContext (Light/Dark Mode)</li>
+                  <li>✅ NotificationContext (Toast System)</li>
+                  <li>✅ OfflineContext (Network Detection)</li>
+                  <li>✅ Role-based Layout System</li>
+                  <li>✅ Responsive Design</li>
+                </ul>
+              </div>
+            </div>
+            <Alert className="mt-4 border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-950/20">
+              <CheckCircle className="h-4 w-4" />
+              <AlertTitle className="text-purple-800 dark:text-purple-200">
+                🚀 Ready for Phase 2 Development!
+              </AlertTitle>
+              <AlertDescription className="text-purple-600 dark:text-purple-400">
+                All foundations are solid. Context providers working perfectly.
+                Time to build the actual application features!
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
       </div>

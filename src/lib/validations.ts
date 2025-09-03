@@ -4,6 +4,7 @@ import { z } from 'zod'
 // Common validation patterns
 const phoneRegex = /^(\+62|62|0)8[1-9][0-9]{6,9}$/
 const nimRegex = /^[0-9]{8,12}$/
+const nipRegex = /^[0-9]{18}$/
 const passwordRegex =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/
 
@@ -17,6 +18,7 @@ export const loginSchema = z.object({
   rememberMe: z.boolean().optional(),
 })
 
+// Updated registerSchema for RegisterForm compatibility
 export const registerSchema = z
   .object({
     email: z
@@ -25,29 +27,66 @@ export const registerSchema = z
       .email('Format email tidak valid'),
     password: z
       .string()
+      .min(1, 'Password wajib diisi')
       .min(8, 'Password minimal 8 karakter')
       .regex(
-        passwordRegex,
-        'Password harus mengandung huruf besar, huruf kecil, angka, dan karakter khusus'
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+        'Password harus mengandung huruf besar, huruf kecil, dan angka'
       ),
     confirmPassword: z.string().min(1, 'Konfirmasi password wajib diisi'),
-    name: z
+    fullName: z
       .string()
-      .min(2, 'Nama minimal 2 karakter')
+      .min(1, 'Nama lengkap wajib diisi')
+      .min(3, 'Nama minimal 3 karakter')
       .max(100, 'Nama maksimal 100 karakter'),
-    nim: z.string().regex(nimRegex, 'Format NIM tidak valid').optional(),
     phone: z
       .string()
-      .regex(phoneRegex, 'Format nomor HP tidak valid')
-      .optional(),
-    role: z
-      .enum(['admin', 'dosen', 'mahasiswa', 'laboran'])
-      .default('mahasiswa'),
+      .min(1, 'Nomor telepon wajib diisi')
+      .regex(/^(\+62|62|0)[0-9]{9,13}$/, 'Format nomor telepon tidak valid'),
+    role: z.enum(['admin', 'dosen', 'mahasiswa', 'laboran']).optional(),
+    nim: z.string().optional(),
+    nip: z.string().optional(),
+    department: z.string().optional(),
+    agreeToTerms: z.boolean().refine((val) => val === true, {
+      message: 'Anda harus menyetujui syarat dan ketentuan',
+    }),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'Konfirmasi password tidak cocok',
+    message: 'Password tidak cocok',
     path: ['confirmPassword'],
   })
+  .refine(
+    (data) => {
+      // Validate NIM for mahasiswa
+      if (data.role === 'mahasiswa' && !data.nim) {
+        return false
+      }
+      if (data.nim && !nimRegex.test(data.nim)) {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'NIM tidak valid (8-12 digit)',
+      path: ['nim'],
+    }
+  )
+  .refine(
+    (data) => {
+      // Validate NIP for dosen
+      if (data.role === 'dosen' && !data.nip) {
+        return false
+      }
+      if (data.nip && !nipRegex.test(data.nip)) {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'NIP tidak valid (18 digit)',
+      path: ['nip'],
+    }
+  )
 
 export const forgotPasswordSchema = z.object({
   email: z
@@ -96,6 +135,7 @@ export const profileSchema = z.object({
     .string()
     .min(2, 'Nama minimal 2 karakter')
     .max(100, 'Nama maksimal 100 karakter'),
+  email: z.string().email('Format email tidak valid').optional(), // Optional since it might not be editable
   nim: z.string().regex(nimRegex, 'Format NIM tidak valid').optional(),
   phone: z.string().regex(phoneRegex, 'Format nomor HP tidak valid').optional(),
   avatar: z
@@ -484,8 +524,21 @@ export const searchSchema = z.object({
 // Export type inference
 export type LoginFormData = z.infer<typeof loginSchema>
 export type RegisterFormData = z.infer<typeof registerSchema>
+export type UserRegistrationInput = z.infer<typeof registerSchema>
+export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>
+export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>
+export type ChangePasswordFormData = z.infer<typeof changePasswordSchema>
 export type ProfileFormData = z.infer<typeof profileSchema>
+export type CreateUserFormData = z.infer<typeof createUserSchema>
 export type MataKuliahFormData = z.infer<typeof mataKuliahSchema>
+export type JadwalFormData = z.infer<typeof jadwalSchema>
 export type KuisFormData = z.infer<typeof kuisSchema>
+export type KuisQuestionFormData = z.infer<typeof kuisQuestionSchema>
+export type LaboratoryFormData = z.infer<typeof laboratorySchema>
+export type EquipmentFormData = z.infer<typeof equipmentSchema>
 export type PeminjamanFormData = z.infer<typeof peminjamanSchema>
 export type BookingFormData = z.infer<typeof bookingSchema>
+export type FileUploadFormData = z.infer<typeof fileUploadSchema>
+export type MateriFormData = z.infer<typeof materiSchema>
+export type PengumumanFormData = z.infer<typeof pengumumanSchema>
+export type SearchFormData = z.infer<typeof searchSchema>
