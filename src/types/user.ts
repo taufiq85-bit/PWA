@@ -1,15 +1,19 @@
-// src/types/user.ts
+// src/types/user.ts - CORRECTED to match database schema
 export interface UserProfile {
   id: string
-  nim: string | null
-  name: string
+  username?: string
+  full_name: string // ✅ Changed from 'name' to 'full_name'
   email: string
-  phone: string | null
-  avatar_url: string | null
-  role_default: string | null
+  nim_nip?: string // ✅ Changed from 'nim' to 'nim_nip'
+  phone?: string
+  address?: string
+  birth_date?: string
+  avatar_url?: string
+  role_default?: string
+  is_active: boolean
+  email_verified: boolean
   created_at: string
   updated_at: string
-  is_active: boolean
 }
 
 // ✅ Complete Role definition sesuai database schema
@@ -17,20 +21,20 @@ export interface Role {
   id: string
   role_name: string
   role_code: string
-  description: string | null
+  description?: string // ✅ Made optional to match common patterns
   is_active: boolean
   created_at: string
   updated_at: string
 }
 
-// ✅ Complete Permission definition sesuai database schema  
+// ✅ Complete Permission definition sesuai database schema
 export interface Permission {
   id: string
   permission_code: string
   permission_name: string
   module: string
   action: string
-  description: string | null
+  description?: string // ✅ Made optional to match common patterns
   created_at: string
   updated_at: string
 }
@@ -41,7 +45,7 @@ export interface UserRole {
   user_id: string
   role_id: string
   assigned_at: string
-  assigned_by: string | null
+  assigned_by?: string // ✅ Made optional
   is_active: boolean
 }
 
@@ -67,18 +71,24 @@ export interface EnhancedUserProfile extends UserProfile {
 // User creation data
 export interface CreateUserData {
   email: string
-  name: string
-  nim?: string
+  full_name: string // ✅ Changed from 'name' to 'full_name'
+  username?: string
+  nim_nip?: string // ✅ Changed from 'nim' to 'nim_nip'
   phone?: string
+  address?: string
+  birth_date?: string
   role_default?: string
   avatar_url?: string
 }
 
 // User update data
 export interface UpdateUserData {
-  name?: string
-  nim?: string
+  full_name?: string // ✅ Changed from 'name' to 'full_name'
+  username?: string
+  nim_nip?: string // ✅ Changed from 'nim' to 'nim_nip'
   phone?: string
+  address?: string
+  birth_date?: string
   avatar_url?: string
   role_default?: string
 }

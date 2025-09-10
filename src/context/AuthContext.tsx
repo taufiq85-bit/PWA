@@ -1,442 +1,584 @@
-// src/context/AuthContext.tsx - Fixed version
-import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
-import type { 
-  AuthContextType, 
-  AuthState, 
-  LoginCredentials, 
-  UserRegistrationInput,
-  ChangePasswordData,
-  AuthError 
-} from '@/types/auth'
-import type { UserProfile, Role, Permission } from '@/types/user'
-import type { User, Session } from '@supabase/supabase-js'
+import React, { createContext, useContext, useReducer, useEffect } from 'react'
+import { supabase, supabaseHelpers } from '../lib/supabase'
+import type {
+  AuthContextType,
+  AuthState,
+  AuthError,
+  AuthResult,
+  LoginCredentials,
+  RegisterData,
+  UserProfile,
+  UserRole,
+  UserPermission,
+  UserProfileUpdate,
+  PermissionAction,
+} from '../types/auth'
+import type { User } from '@supabase/supabase-js'
 
-// Auth actions
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+// Actions for reducer
 type AuthAction =
   | { type: 'SET_LOADING'; payload: boolean }
-  | { type: 'SET_USER'; payload: { user: User | null; session: Session | null } }
+  | { type: 'SET_USER'; payload: User | null }
   | { type: 'SET_PROFILE'; payload: UserProfile | null }
-  | { type: 'SET_ROLES'; payload: Role[] }
-  | { type: 'SET_PERMISSIONS'; payload: Permission[] }
+  | { type: 'SET_ROLES'; payload: UserRole[] }
+  | { type: 'SET_PERMISSIONS'; payload: UserPermission[] }
   | { type: 'SET_CURRENT_ROLE'; payload: string | null }
-  | { type: 'SET_ERROR'; payload: AuthError | null }
+  | { type: 'SET_ERROR'; payload: AuthError }
+  | { type: 'SET_INITIALIZED'; payload: boolean }
+  | { type: 'SET_AUTHENTICATED'; payload: boolean }
+  | { type: 'SET_SESSION_EXPIRY'; payload: number | null }
+  | { type: 'SET_LAST_ACTIVITY'; payload: number | null }
+  | { type: 'SET_DEVICE_INFO'; payload: string | undefined }
+  | { type: 'CLEAR_ERROR' }
   | { type: 'RESET_AUTH' }
 
 // Initial state
 const initialState: AuthState = {
   user: null,
-  session: null,
   profile: null,
   roles: [],
   permissions: [],
   currentRole: null,
-  isLoading: true,
   isAuthenticated: false,
-  error: null
+  loading: true,
+  initialized: false,
+  error: null,
+  sessionExpiry: null,
+  lastActivity: null,
+  deviceInfo: undefined,
 }
 
-// Auth reducer
+// Reducer function
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
     case 'SET_LOADING':
-      return { ...state, isLoading: action.payload }
-    
+      return { ...state, loading: action.payload }
     case 'SET_USER':
       return {
         ...state,
-        user: action.payload.user,
-        session: action.payload.session,
-        isAuthenticated: !!action.payload.user,
-        error: null
+        user: action.payload,
+        isAuthenticated: !!action.payload,
+        loading: false,
       }
-    
     case 'SET_PROFILE':
       return { ...state, profile: action.payload }
-    
     case 'SET_ROLES':
       return { ...state, roles: action.payload }
-    
     case 'SET_PERMISSIONS':
       return { ...state, permissions: action.payload }
-    
     case 'SET_CURRENT_ROLE':
       return { ...state, currentRole: action.payload }
-    
     case 'SET_ERROR':
-      return { ...state, error: action.payload, isLoading: false }
-    
+      return { ...state, error: action.payload, loading: false }
+    case 'SET_INITIALIZED':
+      return { ...state, initialized: action.payload }
+    case 'SET_AUTHENTICATED':
+      return { ...state, isAuthenticated: action.payload }
+    case 'SET_SESSION_EXPIRY':
+      return { ...state, sessionExpiry: action.payload }
+    case 'SET_LAST_ACTIVITY':
+      return { ...state, lastActivity: action.payload }
+    case 'SET_DEVICE_INFO':
+      return { ...state, deviceInfo: action.payload }
+    case 'CLEAR_ERROR':
+      return { ...state, error: null }
     case 'RESET_AUTH':
-      return { ...initialState, isLoading: false }
-    
+      return { ...initialState, loading: false, initialized: true }
     default:
       return state
   }
 }
 
-// Create context
-export const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-// AuthProvider props interface
-interface AuthProviderProps {
-  readonly children: React.ReactNode
+// Helper function to get device info
+const getDeviceInfo = (): string => {
+  const userAgent = navigator.userAgent
+  const platform = navigator.platform
+  return `${platform} - ${userAgent.substring(0, 100)}`
 }
 
-// AuthProvider component
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [authState, dispatch] = useReducer(authReducer, initialState)
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [state, dispatch] = useReducer(authReducer, initialState)
 
-  // ✅ Fetch user profile and roles
-  const fetchUserProfile = useCallback(async (userId: string) => {
-    try {
-      // Get user profile - Fix: Add explicit typing
-      const { data: profile, error: profileError } = await supabase
-        .from('users_profile')
-        .select('*')
-        .eq('id', userId)
-        .single() as { data: any; error: any }
+  // Initialize auth
+  useEffect(() => {
+    initializeAuth()
+  }, [])
 
-      if (profileError) throw profileError
+  // Listen to auth changes
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event)
 
-      dispatch({ type: 'SET_PROFILE', payload: profile })
-
-      // Get user roles with proper typing
-      const { data: userRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select(`
-          roles (
-            id,
-            role_name,
-            role_code,
-            description,
-            is_active,
-            created_at,
-            updated_at
-          )
-        `)
-        .eq('user_id', userId)
-        .eq('is_active', true)
-
-      if (rolesError) throw rolesError
-
-      // ✅ Fix type casting for roles
-      const roles = (userRoles as Array<{ roles: Role | null }> || [])
-        .map(ur => ur.roles)
-        .filter((role): role is Role => role !== null)
-
-      dispatch({ type: 'SET_ROLES', payload: roles })
-
-      // Set default current role - Fix: Access role_default safely
-      const defaultRole = profile?.role_default || roles[0]?.role_code || null
-      dispatch({ type: 'SET_CURRENT_ROLE', payload: defaultRole })
-
-      // Get permissions for current roles
-      if (roles.length > 0) {
-        await fetchUserPermissions(roles.map(r => r.id))
+      if (event === 'SIGNED_IN' && session?.user) {
+        await loadUserData(session.user)
+        // Set session expiry
+        if (session.expires_at) {
+          dispatch({ type: 'SET_SESSION_EXPIRY', payload: session.expires_at * 1000 })
+        }
+      } else if (event === 'SIGNED_OUT') {
+        dispatch({ type: 'RESET_AUTH' })
       }
+    })
 
-    } catch (error) {
-      console.error('Error fetching user profile:', error)
-      dispatch({ 
-        type: 'SET_ERROR', 
-        payload: { 
-          code: 'FETCH_PROFILE_ERROR', 
-          message: 'Failed to fetch user profile' 
-        } 
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Update last activity periodically
+  useEffect(() => {
+    const updateActivity = () => {
+      if (state.isAuthenticated) {
+        dispatch({ type: 'SET_LAST_ACTIVITY', payload: Date.now() })
+      }
+    }
+
+    // Update activity on various user interactions
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
+    events.forEach(event => {
+      window.addEventListener(event, updateActivity, { passive: true })
+    })
+
+    return () => {
+      events.forEach(event => {
+        window.removeEventListener(event, updateActivity)
       })
     }
-  }, [])
+  }, [state.isAuthenticated])
 
-  // ✅ Fetch user permissions
-  const fetchUserPermissions = useCallback(async (roleIds: string[]) => {
+  const initializeAuth = async () => {
     try {
-      const { data: rolePermissions, error } = await supabase
-        .from('role_permissions')
-        .select(`
-          permissions (
-            id,
-            permission_code,
-            permission_name,
-            module,
-            action,
-            description,
-            created_at,
-            updated_at
-          )
-        `)
-        .in('role_id', roleIds)
+      dispatch({ type: 'SET_LOADING', payload: true })
+      dispatch({ type: 'SET_DEVICE_INFO', payload: getDeviceInfo() })
 
-      if (error) throw error
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
 
-      // ✅ Fix type casting for permissions
-      const permissions = (rolePermissions as Array<{ permissions: Permission | null }> || [])
-        .map(rp => rp.permissions)
-        .filter((permission): permission is Permission => permission !== null)
+      if (session?.user) {
+        await loadUserData(session.user)
+        if (session.expires_at) {
+          dispatch({ type: 'SET_SESSION_EXPIRY', payload: session.expires_at * 1000 })
+        }
+      } else {
+        dispatch({ type: 'SET_USER', payload: null })
+      }
+    } catch (error) {
+      console.error('Initialize auth error:', error)
+      dispatch({ type: 'SET_ERROR', payload: 'Gagal memuat data pengguna' })
+    } finally {
+      dispatch({ type: 'SET_INITIALIZED', payload: true })
+    }
+  }
 
+  const loadUserData = async (user: User) => {
+    try {
+      dispatch({ type: 'SET_USER', payload: user })
+      dispatch({ type: 'SET_LAST_ACTIVITY', payload: Date.now() })
+
+      // Load profile
+      const profile = await supabaseHelpers.getUserProfile(user.id)
+      if (profile) {
+        dispatch({ type: 'SET_PROFILE', payload: profile })
+      }
+
+      // Load roles
+      const roles = await supabaseHelpers.getUserRoles(user.id)
+      dispatch({ type: 'SET_ROLES', payload: roles })
+
+      // Load permissions
+      const permissionsData = await supabaseHelpers.getUserPermissions(user.id)
+      const permissions: UserPermission[] = permissionsData.map((perm: any) => ({
+        id: perm.id,
+        permission_code: perm.permission_code,
+        permission_name: perm.permission_name,
+        module: perm.module,
+        action: perm.action,
+        description: perm.description,
+        created_at: perm.created_at || new Date().toISOString(),
+        updated_at: perm.updated_at,
+      }))
       dispatch({ type: 'SET_PERMISSIONS', payload: permissions })
 
+      // Set current role
+      const currentRole =
+        roles.find((role) => role.is_active)?.role_code ||
+        roles[0]?.role_code ||
+        null
+      dispatch({ type: 'SET_CURRENT_ROLE', payload: currentRole })
     } catch (error) {
-      console.error('Error fetching permissions:', error)
+      console.error('Load user data error:', error)
+      dispatch({ type: 'SET_ERROR', payload: 'Gagal memuat data pengguna' })
     }
-  }, [])
+  }
 
-  // ✅ Login function
-  const login = useCallback(async (credentials: LoginCredentials) => {
-    dispatch({ type: 'SET_LOADING', payload: true })
-    dispatch({ type: 'SET_ERROR', payload: null })
-
+  // Auth actions
+  const login = async (credentials: LoginCredentials): Promise<AuthResult> => {
     try {
+      dispatch({ type: 'SET_LOADING', payload: true })
+      dispatch({ type: 'CLEAR_ERROR' })
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: credentials.email,
-        password: credentials.password
+        password: credentials.password,
       })
 
       if (error) {
-        dispatch({ 
-          type: 'SET_ERROR', 
-          payload: { 
-            code: error.message, 
-            message: 'Login failed. Please check your credentials.' 
-          } 
-        })
-        return { success: false, error: { code: error.message, message: error.message } }
+        dispatch({ type: 'SET_ERROR', payload: error.message })
+        return { success: false, error: error.message }
       }
 
       if (data.user) {
-        dispatch({ type: 'SET_USER', payload: { user: data.user, session: data.session } })
-        await fetchUserProfile(data.user.id)
+        await loadUserData(data.user)
+        await trackLogin(getDeviceInfo())
       }
 
-      dispatch({ type: 'SET_LOADING', payload: false })
       return { success: true }
-
     } catch (error: any) {
-      const authError = { 
-        code: 'LOGIN_ERROR', 
-        message: error.message || 'An unexpected error occurred' 
-      }
-      dispatch({ type: 'SET_ERROR', payload: authError })
-      return { success: false, error: authError }
+      const errorMessage = error.message || 'Terjadi kesalahan saat login'
+      dispatch({ type: 'SET_ERROR', payload: errorMessage })
+      return { success: false, error: errorMessage }
     }
-  }, [fetchUserProfile])
+  }
 
-  // ✅ Register function with proper types
-  const register = useCallback(async (data: UserRegistrationInput) => {
-    dispatch({ type: 'SET_LOADING', payload: true })
-    dispatch({ type: 'SET_ERROR', payload: null })
-
+  const register = async (data: RegisterData): Promise<AuthResult> => {
     try {
-      // Validate passwords match
-      if (data.password !== data.confirmPassword) {
-        throw new Error('Passwords do not match')
-      }
+      dispatch({ type: 'SET_LOADING', payload: true })
+      dispatch({ type: 'CLEAR_ERROR' })
 
-      // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
-        password: data.password
+        password: data.password,
+        options: {
+          data: {
+            full_name: data.fullName,
+          },
+        },
       })
 
-      if (authError) throw authError
-
-      if (authData.user) {
-        // ✅ Create user profile with proper typing
-        const { error: profileError } = await supabase
-          .from('users_profile')
-          .insert({
-            id: authData.user.id,
-            email: data.email,
-            name: data.name,
-            nim: data.nim || null,
-            phone: data.phone || null,
-            role_default: data.role || 'MAHASISWA'
-          } as any)
-
-        if (profileError) throw profileError
-
-        // ✅ Assign default role with proper error handling - Fix: Add explicit typing
-        const { data: roleData, error: roleError } = await supabase
-          .from('roles')
-          .select('id')
-          .eq('role_code', data.role || 'MAHASISWA')
-          .single() as { data: any; error: any }
-
-        if (roleError) {
-          console.error('Role fetch error:', roleError)
-        } else if (roleData) {
-          const { error: userRoleError } = await supabase
-            .from('user_roles')
-            .insert({
-              user_id: authData.user.id,
-              role_id: roleData.id,
-              is_active: true
-            } as any)
-
-          if (userRoleError) {
-            console.error('User role assignment error:', userRoleError)
-          }
-        }
+      if (authError) {
+        dispatch({ type: 'SET_ERROR', payload: authError.message })
+        return { success: false, error: authError.message }
       }
 
-      dispatch({ type: 'SET_LOADING', payload: false })
+      if (!authData.user) {
+        dispatch({ type: 'SET_ERROR', payload: 'Gagal membuat user' })
+        return { success: false, error: 'Gagal membuat user' }
+      }
+
       return { success: true }
-
     } catch (error: any) {
-      const authError = { 
-        code: 'REGISTER_ERROR', 
-        message: error.message || 'Registration failed' 
-      }
-      dispatch({ type: 'SET_ERROR', payload: authError })
-      return { success: false, error: authError }
+      const errorMessage = error.message || 'Terjadi kesalahan saat registrasi'
+      dispatch({ type: 'SET_ERROR', payload: errorMessage })
+      return { success: false, error: errorMessage }
     }
-  }, [])
+  }
 
-  // ✅ Logout function
-  const logout = useCallback(async () => {
+  const logout = async () => {
     try {
+      dispatch({ type: 'SET_LOADING', payload: true })
       await supabase.auth.signOut()
       dispatch({ type: 'RESET_AUTH' })
     } catch (error) {
       console.error('Logout error:', error)
     }
-  }, [])
+  }
 
-  // ✅ Change password function
-  const changePassword = useCallback(async (data: ChangePasswordData) => {
+  const resetPassword = async (email: string): Promise<AuthResult> => {
     try {
-      if (data.newPassword !== data.confirmPassword) {
-        throw new Error('New passwords do not match')
-      }
-
-      const { error } = await supabase.auth.updateUser({
-        password: data.newPassword
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
       })
 
-      if (error) throw error
+      if (error) {
+        return { success: false, error: error.message }
+      }
 
       return { success: true }
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: { code: 'PASSWORD_CHANGE_ERROR', message: error.message } 
-      }
+      return { success: false, error: error.message || 'Gagal reset password' }
     }
-  }, [])
+  }
 
-  // ✅ Switch role function
-  const switchRole = useCallback(async (roleCode: string) => {
-    const hasRole = authState.roles.some(role => role.role_code === roleCode)
-    if (hasRole) {
+  const updatePassword = async (newPassword: string): Promise<AuthResult> => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Gagal update password' }
+    }
+  }
+
+  const updateProfile = async (updates: UserProfileUpdate): Promise<AuthResult> => {
+    try {
+      if (!state.user) {
+        return { success: false, error: 'User tidak ditemukan' }
+      }
+
+      await supabaseHelpers.updateUserProfile(state.user.id, updates)
+      await loadUserData(state.user)
+
+      return { success: true }
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Gagal update profile' }
+    }
+  }
+
+  const uploadAvatar = async (file: File): Promise<AuthResult> => {
+    try {
+      if (!state.user) {
+        return { success: false, error: 'User tidak ditemukan' }
+      }
+
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${state.user.id}-${Math.random()}.${fileExt}`
+      const filePath = `avatars/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file)
+
+      if (uploadError) {
+        return { success: false, error: uploadError.message }
+      }
+
+      const { data } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+
+      await updateProfile({ avatar_url: data.publicUrl })
+
+      return { success: true, data: { avatar_url: data.publicUrl } }
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Gagal upload avatar' }
+    }
+  }
+
+  const refreshSession = async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession()
+      if (error) throw error
+
+      if (data.user && data.session?.expires_at) {
+        await loadUserData(data.user)
+        dispatch({ type: 'SET_SESSION_EXPIRY', payload: data.session.expires_at * 1000 })
+      }
+    } catch (error) {
+      console.error('Refresh session error:', error)
+    }
+  }
+
+  const extendSession = async (): Promise<void> => {
+    try {
+      await refreshSession()
+      updateLastActivity()
+    } catch (error) {
+      console.error('Extend session error:', error)
+    }
+  }
+
+  const switchRole = (roleCode: string) => {
+    const role = state.roles.find((r) => r.role_code === roleCode)
+    if (role) {
       dispatch({ type: 'SET_CURRENT_ROLE', payload: roleCode })
+    }
+  }
+
+  // Permission helpers
+  const hasPermission = (permission: string, module?: string): boolean => {
+    return state.permissions.some(perm => {
+      const hasPermCode = perm.permission_code === permission
+      const hasModule = module ? perm.module === module : true
+      return hasPermCode && hasModule
+    })
+  }
+
+  const hasRole = (roleCode: string): boolean => {
+    return state.roles.some(role => role.role_code === roleCode && role.is_active)
+  }
+
+  const canAccess = (resource: string, action: PermissionAction): boolean => {
+    return state.permissions.some(perm => 
+      perm.module.toLowerCase() === resource.toLowerCase() && 
+      perm.action === action
+    )
+  }
+
+  // Activity tracking
+  const updateLastActivity = (): void => {
+    dispatch({ type: 'SET_LAST_ACTIVITY', payload: Date.now() })
+  }
+
+  const trackLogin = async (deviceInfo?: string): Promise<void> => {
+    try {
+      if (deviceInfo) {
+        dispatch({ type: 'SET_DEVICE_INFO', payload: deviceInfo })
+      }
       
-      // Update permissions for new role
-      const selectedRole = authState.roles.find(r => r.role_code === roleCode)
-      if (selectedRole) {
-        await fetchUserPermissions([selectedRole.id])
+      // Update last login in profile
+      if (state.user) {
+        await updateProfile({ 
+          last_login: new Date().toISOString() 
+        })
       }
+    } catch (error) {
+      console.error('Track login error:', error)
     }
-  }, [authState.roles, fetchUserPermissions])
+  }
 
-  // ✅ Refresh user data
-  const refreshUserData = useCallback(async () => {
-    if (authState.user) {
-      await fetchUserProfile(authState.user.id)
-    }
-  }, [authState.user, fetchUserProfile])
+  const clearError = () => {
+    dispatch({ type: 'CLEAR_ERROR' })
+  }
 
-  // ✅ Permission check functions
-  const hasPermission = useCallback((permission: string) => {
-    return authState.permissions.some(p => p.permission_code === permission)
-  }, [authState.permissions])
-
-  const hasRole = useCallback((role: string) => {
-    return authState.roles.some(r => r.role_code === role)
-  }, [authState.roles])
-
-  const canAccess = useCallback((resource: string, action: string) => {
-    return authState.permissions.some(p => 
-      p.module === resource && p.action === action
-    )
-  }, [authState.permissions])
-
-  // ✅ Initialize auth state on mount
-  useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session?.user) {
-          dispatch({ 
-            type: 'SET_USER', 
-            payload: { user: session.user, session } 
-          })
-          await fetchUserProfile(session.user.id)
-        } else {
-          dispatch({ type: 'SET_LOADING', payload: false })
-        }
-      } catch (error) {
-        console.error('Auth initialization error:', error)
-        dispatch({ type: 'SET_LOADING', payload: false })
+  // Missing methods required by AuthContextType
+  const fetchProfile = async (userId: string): Promise<void> => {
+    try {
+      const profile = await supabaseHelpers.getUserProfile(userId)
+      if (profile) {
+        dispatch({ type: 'SET_PROFILE', payload: profile })
       }
+    } catch (error: any) {
+      console.error('Fetch profile error:', error)
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memuat profile' })
     }
+  }
 
-    initializeAuth()
+  const checkSession = async (): Promise<boolean> => {
+    try {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession()
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          dispatch({ 
-            type: 'SET_USER', 
-            payload: { user: session.user, session } 
-          })
-          await fetchUserProfile(session.user.id)
-        } else if (event === 'SIGNED_OUT') {
-          dispatch({ type: 'RESET_AUTH' })
-        }
+      if (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message })
+        return false
       }
-    )
 
-    return () => subscription.unsubscribe()
-  }, [fetchUserProfile])
+      if (!session) {
+        dispatch({ type: 'RESET_AUTH' })
+        return false
+      }
 
-  // ✅ Memoize context value to prevent unnecessary re-renders
-  const contextValue: AuthContextType = useMemo(() => ({
-    authState,
+      // Check if session is expired
+      if (session.expires_at && session.expires_at * 1000 < Date.now()) {
+        dispatch({ type: 'RESET_AUTH' })
+        return false
+      }
+
+      // Update session expiry
+      if (session.expires_at) {
+        dispatch({ type: 'SET_SESSION_EXPIRY', payload: session.expires_at * 1000 })
+      }
+
+      // Optionally refresh user data if session is valid
+      if (session.user && session.user.id !== state.user?.id) {
+        await loadUserData(session.user)
+      }
+
+      return true
+    } catch (error: any) {
+      console.error('Check session error:', error)
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memeriksa session' })
+      return false
+    }
+  }
+
+  const fetchUserRoles = async (userId: string): Promise<void> => {
+    try {
+      const roles = await supabaseHelpers.getUserRoles(userId)
+      dispatch({ type: 'SET_ROLES', payload: roles })
+
+      // Update current role if needed
+      const currentRole =
+        roles.find((role) => role.is_active)?.role_code ||
+        roles[0]?.role_code ||
+        null
+      dispatch({ type: 'SET_CURRENT_ROLE', payload: currentRole })
+    } catch (error: any) {
+      console.error('Fetch user roles error:', error)
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memuat roles' })
+    }
+  }
+
+  const fetchUserPermissions = async (roleIds: string[]): Promise<void> => {
+    try {
+      // If no user is authenticated, return early
+      if (!state.user) {
+        return
+      }
+
+      // You might need to modify this based on your supabaseHelpers implementation
+      // If it expects roleIds, use them; otherwise use the current user's roles
+      let permissionsData
+      if (roleIds.length > 0) {
+        // If your supabaseHelpers has a method to get permissions by role IDs
+        // permissionsData = await supabaseHelpers.getPermissionsByRoleIds(roleIds)
+        // For now, using the existing method
+        permissionsData = await supabaseHelpers.getUserPermissions(state.user.id)
+      } else {
+        permissionsData = await supabaseHelpers.getUserPermissions(state.user.id)
+      }
+
+      const permissions: UserPermission[] = permissionsData.map((perm: any) => ({
+        id: perm.id,
+        permission_code: perm.permission_code,
+        permission_name: perm.permission_name,
+        module: perm.module,
+        action: perm.action,
+        description: perm.description,
+        created_at: perm.created_at || new Date().toISOString(),
+        updated_at: perm.updated_at,
+      }))
+      
+      dispatch({ type: 'SET_PERMISSIONS', payload: permissions })
+    } catch (error: any) {
+      console.error('Fetch user permissions error:', error)
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memuat permissions' })
+    }
+  }
+
+  // Context value
+  const value: AuthContextType = {
+    ...state,
     login,
-    logout,
     register,
-    changePassword,
+    logout,
+    resetPassword,
+    updatePassword,
+    updateProfile,
+    uploadAvatar,
+    refreshSession,
+    extendSession,
     switchRole,
-    refreshUserData,
     hasPermission,
     hasRole,
-    canAccess
-  }), [
-    authState,
-    login,
-    logout,
-    register,
-    changePassword,
-    switchRole,
-    refreshUserData,
-    hasPermission,
-    hasRole,
-    canAccess
-  ])
+    canAccess,
+    updateLastActivity,
+    trackLogin,
+    clearError,
+    fetchProfile,
+    checkSession,
+    fetchUserRoles,
+    fetchUserPermissions,
+  }
 
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-// useAuth hook
-export function useAuth(): AuthContextType {
+export const useAuthContext = () => {
   const context = useContext(AuthContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuthContext must be used within an AuthProvider')
   }
   return context
 }

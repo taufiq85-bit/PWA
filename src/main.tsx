@@ -21,5 +21,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </OfflineProvider>
       </NotificationProvider>
     </ThemeProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 )

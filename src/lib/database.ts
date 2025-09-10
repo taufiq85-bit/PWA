@@ -165,7 +165,13 @@ export class UserService {
       }
 
       return (
-        (data as { roles: Role | null }[] | null)
+        (data as unknown as { roles: { 
+  id: string; 
+  name: string; 
+  description: string | null; 
+  is_active: boolean; 
+  created_at: string; 
+} | null }[] | null)
           ?.map((item) => item.roles)
           .filter((role): role is Role => !!role) || []
       )

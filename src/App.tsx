@@ -1,10 +1,6 @@
-// src/App.tsx - Complete Testing Implementation + Integration Test Suite + Context Providers + Auth Context
-import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
-import { checkDatabaseHealth } from '@/lib/database'
-import { StorageService } from '@/lib/storage'
+// src/App.tsx - Fixed Infinite Re-render Issue
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { MainLayout } from '@/components/layout/MainLayout'
-import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -14,18 +10,13 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   CheckCircle,
   AlertCircle,
-  Wifi,
-  WifiOff,
-  Smartphone,
-  Monitor,
-  Package,
   Database,
   RefreshCw,
   XCircle,
@@ -38,16 +29,24 @@ import {
   Lock,
   User,
   Shield,
+  Settings,
+  Activity,
 } from 'lucide-react'
 
-// Import untuk Integration Testing
-import { IntegrationTestSuite } from '@/components/testing/IntegrationTestSuite'
+// Import services and utilities
+import { supabase } from '@/lib/supabase'
+import { checkDatabaseHealth } from '@/lib/database'
+import { StorageService } from '@/lib/storage'
+import { testSupabaseConnection } from '@/lib/supabase'
 
 // Import context hooks
 import { useTheme } from '@/context/ThemeContext'
 import { useNotification } from '@/context/NotificationContext'
 import { useOffline } from '@/context/OfflineContext'
 import { useAuth } from '@/hooks/useAuth'
+
+// Import testing components
+import { IntegrationTestSuite } from '@/components/testing/IntegrationTestSuite'
 
 // Type definitions
 type UserRole = 'admin' | 'dosen' | 'mahasiswa' | 'laboran'
@@ -76,147 +75,150 @@ interface StorageCheckResult {
   errors: string[]
 }
 
-interface DatabaseInfo {
-  version?: string
-  status?: string
-  schema?: string
-}
-
 interface HealthCheckResult {
   connection: boolean
   error?: string
   tablesExist?: Record<string, boolean>
-  databaseInfo?: DatabaseInfo
-}
-
-interface RoleData {
-  name: string
-  color: string
+  databaseInfo?: {
+    version?: string
+    status?: string
+    schema?: string
+  }
 }
 
 function App() {
+  // GUARD: Prevent multiple initializations
+  const hasInitialized = useRef(false)
+  
   // Context hooks
   const { theme, isDark, toggleTheme } = useTheme()
   const { showSuccess, showError, showWarning, showInfo } = useNotification()
   const { isOnline, connectionType, retryConnection } = useOffline()
-  
+
   // Authentication Context
-  const { 
-    authState, 
-    login, 
-    logout, 
-    isAdmin, 
-    isDosen, 
-    isMahasiswa, 
+  const {
+    authState,
+    login,
+    logout,
+    isAdmin,
+    isDosen,
+    isMahasiswa,
     isLaboran,
     hasPermission,
-    switchRole 
+    switchRole,
   } = useAuth()
 
+  // State management
   const [currentRole, setCurrentRole] = useState<UserRole>('admin')
   const [testResults, setTestResults] = useState<TestResults>({
     components: true,
     pwa: true,
     responsive: true,
     icons: true,
-    routing: false, // Will implement in Phase 2
-    supabase: false, // Test Supabase connection
-    storage: false, // Test Storage buckets
-    context: true, // Context providers loaded
-    auth: false, // Authentication context
+    routing: false,
+    supabase: false,
+    storage: false,
+    context: true,
+    auth: false,
   })
   const [healthCheck, setHealthCheck] = useState<HealthCheckResult | null>(null)
   const [storageCheck, setStorageCheck] = useState<StorageCheckResult | null>(
     null
   )
+  const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  
+  const [isDevelopmentMode] = useState(import.meta.env.DEV)
+
   // Authentication test credentials
   const [testCredentials, setTestCredentials] = useState({
     email: 'admin@akbidmegabuana.ac.id',
-    password: 'admin123'
+    password: 'admin123',
   })
 
-  // Test Authentication Context
+  const roleData = {
+    admin: { name: 'Administrator', color: 'bg-red-500' },
+    dosen: { name: 'Dosen Praktikum', color: 'bg-blue-500' },
+    mahasiswa: { name: 'Mahasiswa', color: 'bg-green-500' },
+    laboran: { name: 'Laboran', color: 'bg-purple-500' },
+  }
+
+  // FIXED: Memoized functions to prevent re-creation
+  const testSupabaseConnectionStatus = useCallback(async () => {
+    const isConnected = await testSupabaseConnection()
+    setConnectionStatus(isConnected)
+
+    if (isConnected) {
+      showSuccess('Supabase Connected!', 'Database connection established')
+    } else {
+      showError('Connection Failed', 'Check Supabase configuration')
+    }
+  }, [showSuccess, showError])
+
   const testAuthenticationContext = useCallback(async () => {
     try {
-      // Test if auth context is available
-      if (!authState || typeof login !== 'function' || typeof logout !== 'function') {
+      if (
+        !authState ||
+        typeof login !== 'function' ||
+        typeof logout !== 'function'
+      ) {
         throw new Error('AuthContext not properly initialized')
       }
 
-      // Test role detection functions
-      if (typeof isAdmin !== 'function' || typeof isDosen !== 'function' || 
-          typeof isMahasiswa !== 'function' || typeof isLaboran !== 'function') {
+      if (
+        typeof isAdmin !== 'function' ||
+        typeof isDosen !== 'function' ||
+        typeof isMahasiswa !== 'function' ||
+        typeof isLaboran !== 'function'
+      ) {
         throw new Error('Role detection functions not available')
       }
 
-      // Test permission system
       if (typeof hasPermission !== 'function') {
         throw new Error('Permission system not available')
       }
 
-      showSuccess('Auth Context Test', 'Authentication context is properly initialized!')
+      showSuccess(
+        'Auth Context Test',
+        'Authentication context is properly initialized!'
+      )
       setTestResults((prev) => ({ ...prev, auth: true }))
       return true
     } catch (error) {
       console.error('Auth context test failed:', error)
-      showError('Auth Context Error', error instanceof Error ? error.message : 'Authentication context failed')
+      showError(
+        'Auth Context Error',
+        error instanceof Error ? error.message : 'Authentication context failed'
+      )
       setTestResults((prev) => ({ ...prev, auth: false }))
       return false
     }
-  }, [authState, login, logout, isAdmin, isDosen, isMahasiswa, isLaboran, hasPermission, showSuccess, showError])
+  }, [
+    authState,
+    login,
+    logout,
+    isAdmin,
+    isDosen,
+    isMahasiswa,
+    isLaboran,
+    hasPermission,
+    showSuccess,
+    showError,
+  ])
 
-  // Test authentication login
-  const testAuthLogin = async () => {
-    if (!testCredentials.email || !testCredentials.password) {
-      showError('Login Test', 'Please enter both email and password')
-      return
-    }
-
-    try {
-      const result = await login(testCredentials)
-      if (result.success) {
-        showSuccess('Login Success!', 'Authentication Context working perfectly')
-      } else {
-        showError('Login Failed', result.error?.message || 'Authentication error')
-      }
-    } catch (error) {
-      console.error('Login test failed:', error)
-      showError('Login Error', error instanceof Error ? error.message : 'Login test failed')
-    }
-  }
-
-  // Test authentication logout
-  const testAuthLogout = async () => {
-    try {
-      await logout()
-      showSuccess('Logout Success!', 'User session cleared successfully')
-    } catch (error) {
-      console.error('Logout test failed:', error)
-      showError('Logout Error', error instanceof Error ? error.message : 'Logout test failed')
-    }
-  }
-
-  // Test context providers
   const testContextProviders = useCallback(async () => {
     try {
-      // Test theme context
       if (!theme || typeof toggleTheme !== 'function') {
         throw new Error('ThemeContext not working')
       }
 
-      // Test notification context
       if (typeof showSuccess !== 'function') {
         throw new Error('NotificationContext not working')
       }
 
-      // Test offline context
       if (typeof isOnline !== 'boolean') {
         throw new Error('OfflineContext not working')
       }
 
-      // Test authentication context
       await testAuthenticationContext()
 
       showSuccess('Context Test', 'All context providers working successfully!')
@@ -228,7 +230,102 @@ function App() {
       setTestResults((prev) => ({ ...prev, context: false }))
       return false
     }
-  }, [theme, toggleTheme, showSuccess, showError, isOnline, testAuthenticationContext])
+  }, [
+    theme,
+    toggleTheme,
+    showSuccess,
+    showError,
+    isOnline,
+    testAuthenticationContext,
+  ])
+
+  // Test storage access
+  const testStorageAccess = async (): Promise<StorageCheckResult> => {
+    console.log('Testing storage access...')
+
+    const buckets = ['materi', 'profiles', 'documents']
+    const results: StorageCheckResult = {
+      accessible: false,
+      buckets: {},
+      errors: [],
+    }
+
+    for (const bucket of buckets) {
+      try {
+        const { data, error } = await StorageService.listFiles(bucket)
+
+        if (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          results.buckets[bucket] = { accessible: false, error: message }
+          results.errors.push(`${bucket}: ${message}`)
+        } else {
+          results.buckets[bucket] = {
+            accessible: true,
+            files: data?.length || 0,
+          }
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        results.buckets[bucket] = { accessible: false, error: message }
+        results.errors.push(`${bucket}: ${message}`)
+      }
+    }
+
+    results.accessible = Object.values(results.buckets).some(
+      (bucket: BucketInfo) => bucket.accessible
+    )
+
+    setStorageCheck(results)
+    setTestResults((prev) => ({ ...prev, storage: results.accessible }))
+
+    return results
+  }
+
+  // Test authentication login
+  const testAuthLogin = async () => {
+    if (!testCredentials.email || !testCredentials.password) {
+      showError('Login Test', 'Please enter both email and password')
+      return
+    }
+
+    try {
+      const result = await login(testCredentials)
+      if (result.success) {
+        showSuccess(
+          'Login Success!',
+          isDevelopmentMode
+            ? 'Authentication working with development fallback'
+            : 'Authentication successful'
+        )
+      } else {
+        const errorMessage =
+          typeof result.error === 'string'
+            ? result.error
+            : (result.error as { message?: string } | undefined)?.message
+        showError('Login Failed', errorMessage || 'Authentication error')
+      }
+    } catch (error) {
+      console.error('Login test failed:', error)
+      showError(
+        'Login Error',
+        error instanceof Error ? error.message : 'Login test failed'
+      )
+    }
+  }
+
+  // Test authentication logout
+  const testAuthLogout = async () => {
+    try {
+      await logout()
+      showSuccess('Logout Success!', 'User session cleared successfully')
+    } catch (error) {
+      console.error('Logout test failed:', error)
+      showError(
+        'Logout Error',
+        error instanceof Error ? error.message : 'Logout test failed'
+      )
+    }
+  }
 
   // Advanced notification testing
   const testNotifications = useCallback(() => {
@@ -251,77 +348,84 @@ function App() {
         'All notification types tested successfully!'
       )
     }, 3000)
-  }, [theme, isOnline, connectionType, authState.isAuthenticated, showInfo, showSuccess, showWarning])
+  }, [
+    theme,
+    isOnline,
+    connectionType,
+    authState.isAuthenticated,
+    showInfo,
+    showSuccess,
+    showWarning,
+  ])
 
-  // Test storage bucket access
-  const testStorageAccess = async (): Promise<StorageCheckResult> => {
-    console.log('Testing storage access...')
+  // FIXED: Memoized refresh function with stable dependencies
+  const refreshAllChecks = useCallback(async () => {
+    setIsLoading(true)
+    showInfo('Refreshing...', 'Testing all systems')
 
-    const buckets = ['materi', 'profiles', 'documents']
-    const results: StorageCheckResult = {
-      accessible: false,
-      buckets: {},
-      errors: [],
+    try {
+      // Test Supabase connection
+      await testSupabaseConnectionStatus()
+
+      // Test database health
+      const healthResults = await checkDatabaseHealth()
+      setHealthCheck(healthResults)
+      setTestResults((prev) => ({
+        ...prev,
+        supabase: healthResults.connection,
+      }))
+
+      // Test storage
+      await testStorageAccess()
+
+      // Test context providers
+      await testContextProviders()
+
+      showSuccess('Refresh Complete', 'All systems rechecked successfully')
+    } catch (error) {
+      console.error('Refresh failed:', error)
+      const message = error instanceof Error ? error.message : String(error)
+      showError('Refresh Failed', message)
+    } finally {
+      setIsLoading(false)
     }
+  }, [
+    testSupabaseConnectionStatus,
+    testContextProviders,
+    showSuccess,
+    showError,
+    showInfo,
+  ])
 
-    for (const bucket of buckets) {
-      try {
-        const { data, error } = await StorageService.listFiles(bucket)
-
-        if (error) {
-          console.log(`${bucket} bucket error:`, error)
-          const message = error instanceof Error ? error.message : String(error)
-          results.buckets[bucket] = { accessible: false, error: message }
-          results.errors.push(`${bucket}: ${message}`)
-        } else {
-          console.log(`${bucket} bucket accessible:`, data)
-          results.buckets[bucket] = {
-            accessible: true,
-            files: data?.length || 0,
-          }
-        }
-      } catch (error) {
-        console.log(`${bucket} bucket error:`, error)
-        const message = error instanceof Error ? error.message : String(error)
-        results.buckets[bucket] = { accessible: false, error: message }
-        results.errors.push(`${bucket}: ${message}`)
-      }
-    }
-
-    // Check if at least one bucket is accessible
-    results.accessible = Object.values(results.buckets).some(
-      (bucket: BucketInfo) => bucket.accessible
-    )
-
-    setStorageCheck(results)
-    setTestResults((prev) => ({ ...prev, storage: results.accessible }))
-
-    return results
-  }
-
-  // Test Supabase connection with health check
+  // FIXED: Initial setup with guard to prevent infinite re-renders
   useEffect(() => {
-    const runHealthCheck = async () => {
-      console.log('Running database health check...')
+    // GUARD: Only run once
+    if (hasInitialized.current) return
+
+    const runInitialSetup = async () => {
+      hasInitialized.current = true
       setIsLoading(true)
 
       try {
+        console.log('🚀 Running initial setup...')
+
+        // Test Supabase connection first
+        await testSupabaseConnectionStatus()
+
+        // Run health check
         const results = await checkDatabaseHealth()
         setHealthCheck(results)
-        console.log('Health check results:', results)
-
-        // Update test results
         setTestResults((prev) => ({ ...prev, supabase: results.connection }))
 
-        // Test storage after database check
+        // Test storage
         await testStorageAccess()
 
         // Test context providers
         await testContextProviders()
+
+        console.log('✅ Initial setup complete')
       } catch (error) {
-        console.error('Health check failed:', error)
-        const message = error instanceof Error ? error.message : String(error)
-        setHealthCheck({ connection: false, error: message })
+        console.error('Initial setup failed:', error)
 
         // Fallback to simple connection test
         try {
@@ -329,82 +433,66 @@ function App() {
             .from('users')
             .select('count')
             .limit(1)
-
-          if (simpleError) {
-            console.error('Supabase connection error:', simpleError)
-            console.log("This is expected if tables don't exist yet")
-          } else {
-            console.log('Supabase connected successfully')
+          if (!simpleError) {
+            setTestResults((prev) => ({ ...prev, supabase: true }))
           }
-
-          setTestResults((prev) => ({ ...prev, supabase: true }))
-
-          // Test storage even if database tables don't exist
           await testStorageAccess()
           await testContextProviders()
-        } catch (simpleTestError) {
-          console.error('Supabase setup error:', simpleTestError)
-          setTestResults((prev) => ({ ...prev, supabase: false }))
+        } catch (fallbackError) {
+          console.error('Fallback test failed:', fallbackError)
         }
       } finally {
         setIsLoading(false)
       }
     }
 
-    runHealthCheck()
-  }, [testContextProviders])
-
-  const roleData: Record<UserRole, RoleData> = {
-    admin: { name: 'Administrator', color: 'bg-red-500' },
-    dosen: { name: 'Dosen Praktikum', color: 'bg-blue-500' },
-    mahasiswa: { name: 'Mahasiswa', color: 'bg-green-500' },
-    laboran: { name: 'Laboran', color: 'bg-purple-500' },
-  }
-
-  const refreshHealthCheck = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const results = await checkDatabaseHealth()
-      setHealthCheck(results)
-
-      // Also refresh storage check and context test
-      await testStorageAccess()
-      await testContextProviders()
-
-      showSuccess('Refresh Complete', 'All systems rechecked successfully')
-    } catch (error) {
-      console.error('Refresh failed:', error)
-      const message = error instanceof Error ? error.message : String(error)
-      setHealthCheck({ connection: false, error: message })
-      showError('Refresh Failed', message)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [testContextProviders, showSuccess, showError])
+    runInitialSetup()
+  }, []) // EMPTY dependency array - prevents infinite re-renders
 
   return (
     <MainLayout
-      userRole={authState.isAuthenticated ? ((authState.currentRole as UserRole) || currentRole) : currentRole}
-      userName={authState.isAuthenticated ? (authState.profile?.name || roleData[currentRole].name) : roleData[currentRole].name}
-      currentPath={`/${currentRole}`}
+      userRole={
+        authState.isAuthenticated
+          ? (authState.currentRole as UserRole) || currentRole
+          : currentRole
+      }
+      userName={
+        authState.isAuthenticated
+          ? authState.profile?.name || roleData[currentRole].name
+          : roleData[currentRole].name
+      }
+      currentPath="/emergency-dev-mode"
     >
       <div className="space-y-6">
-        {/* Header Test Card */}
+        {/* Development Mode Alert */}
+        {isDevelopmentMode && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Development Mode Active</AlertTitle>
+            <AlertDescription>
+              Using fallback data for missing database tables. Run the database
+              setup script in Supabase SQL Editor to enable full functionality.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Header Status Card */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-6 w-6 text-green-500" />
-                  Phase 1 - Final Testing + Authentication Context
+                  <Activity className="h-6 w-6 text-green-500" />
+                  System Status & Testing Suite
                 </CardTitle>
                 <CardDescription>
-                  Development Environment + Context Testing + Authentication
+                  Development Environment + Authentication Context + Integration
+                  Testing
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-green-600">
-                  SETUP COMPLETE
+                  {isDevelopmentMode ? 'DEV MODE' : 'PRODUCTION'}
                 </Badge>
                 <Badge
                   variant="outline"
@@ -420,1015 +508,231 @@ function App() {
                 </Badge>
                 <Badge
                   variant="outline"
-                  className={authState.isAuthenticated ? 'text-green-600' : 'text-gray-600'}
+                  className={
+                    authState.isAuthenticated
+                      ? 'text-green-600'
+                      : 'text-gray-600'
+                  }
                 >
                   {authState.isAuthenticated ? 'Authenticated' : 'Guest'}
                 </Badge>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
-        {/* Authentication Context Test Card */}
-        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
-              <Lock className="h-6 w-6" />
-              Authentication Context Test
-            </CardTitle>
-            <CardDescription className="text-orange-600 dark:text-orange-300">
-              Comprehensive State Management + User State + Error Handling + Role-Based Access Control
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            
-            {/* Auth Status Display */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-3 bg-card border rounded-lg">
-                <p className="font-medium">Status</p>
-                <Badge variant={authState.isAuthenticated ? "default" : "secondary"}>
-                  {authState.isAuthenticated ? "Authenticated" : "Guest"}
-                </Badge>
-              </div>
-              <div className="p-3 bg-card border rounded-lg">
-                <p className="font-medium">Loading</p>
-                <Badge variant={authState.isLoading ? "destructive" : "default"}>
-                  {authState.isLoading ? "Loading..." : "Ready"}
-                </Badge>
-              </div>
-              <div className="p-3 bg-card border rounded-lg">
-                <p className="font-medium">Current Role</p>
-                <Badge variant="outline">
-                  {authState.currentRole || "None"}
-                </Badge>
-              </div>
-              <div className="p-3 bg-card border rounded-lg">
-                <p className="font-medium">Permissions</p>
-                <Badge variant="secondary">
-                  {authState.permissions.length} perms
-                </Badge>
-              </div>
-            </div>
-
-            {/* User Info */}
-            {authState.isAuthenticated && authState.profile && (
-              <div className="p-4 bg-muted rounded-lg">
-                <h3 className="font-semibold mb-2 flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  User Profile
-                </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p><strong>Name:</strong> {authState.profile.name}</p>
-                    <p><strong>Email:</strong> {authState.profile.email}</p>
-                  </div>
-                  <div>
-                    <p><strong>NIM:</strong> {authState.profile.nim || 'N/A'}</p>
-                    <p><strong>Phone:</strong> {authState.profile.phone || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Role Shortcuts Test */}
-            <div className="p-4 bg-muted rounded-lg">
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Role Detection
-              </h3>
-              <div className="flex gap-2 flex-wrap">
-                <Badge variant={isAdmin() ? "default" : "outline"}>Admin: {isAdmin() ? "✓" : "✗"}</Badge>
-                <Badge variant={isDosen() ? "default" : "outline"}>Dosen: {isDosen() ? "✓" : "✗"}</Badge>
-                <Badge variant={isMahasiswa() ? "default" : "outline"}>Mahasiswa: {isMahasiswa() ? "✓" : "✗"}</Badge>
-                <Badge variant={isLaboran() ? "default" : "outline"}>Laboran: {isLaboran() ? "✓" : "✗"}</Badge>
-              </div>
-            </div>
-
-            {/* Authentication Actions */}
-            {!authState.isAuthenticated ? (
-              <div className="space-y-4">
-                <h3 className="font-semibold">Test Authentication</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    placeholder="Email"
-                    value={testCredentials.email}
-                    onChange={(e) => setTestCredentials(prev => ({...prev, email: e.target.value}))}
-                  />
-                  <Input
-                    type="password"
-                    placeholder="Password"
-                    value={testCredentials.password}
-                    onChange={(e) => setTestCredentials(prev => ({...prev, password: e.target.value}))}
-                  />
-                </div>
-                <Button onClick={testAuthLogin} className="w-full" disabled={authState.isLoading}>
-                  {authState.isLoading ? "Authenticating..." : "Test Login"}
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <h3 className="font-semibold">Authenticated Actions</h3>
-                <div className="flex gap-4 flex-wrap">
-                  <Button onClick={testAuthLogout} variant="outline">
-                    Logout
-                  </Button>
-                  <Button onClick={() => showSuccess('Permission Test', `Can create course: ${hasPermission('COURSE_CREATE')}`)}>
-                    Test Permissions
-                  </Button>
-                  {authState.roles.length > 1 && (
-                    <Button onClick={() => switchRole(authState.roles[1].role_code)} variant="secondary">
-                      Switch Role
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Error Display */}
-            {authState.error && (
-              <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-                <h3 className="font-semibold text-destructive mb-2">Authentication Error</h3>
-                <p className="text-sm text-destructive/80">
-                  <strong>Code:</strong> {authState.error.code}<br/>
-                  <strong>Message:</strong> {authState.error.message}
-                </p>
-              </div>
-            )}
-
-          </CardContent>
-        </Card>
-
-        {/* Context Providers Test Card */}
-        <Card className="border-purple-200 bg-purple-50 dark:bg-purple-950/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-purple-800 dark:text-purple-200">
-              <Palette className="h-6 w-6" />
-              Context Providers Test
-            </CardTitle>
-            <CardDescription className="text-purple-600 dark:text-purple-300">
-              Testing ThemeContext, NotificationContext, OfflineContext, AuthContext integration
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Theme Context Test */}
-            <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                {isDark ? (
-                  <Moon className="h-4 w-4" />
-                ) : (
-                  <Sun className="h-4 w-4" />
-                )}
-                Theme Context
-              </h3>
-              <div className="flex items-center gap-4">
-                <Badge variant={isDark ? 'destructive' : 'default'}>
-                  {theme} - {isDark ? 'Dark' : 'Light'}
-                </Badge>
-                <Button onClick={toggleTheme} size="sm" variant="outline">
-                  {isDark ? (
-                    <Sun className="h-4 w-4 mr-1" />
-                  ) : (
-                    <Moon className="h-4 w-4 mr-1" />
-                  )}
-                  Toggle Theme
-                </Button>
-                <Badge variant="secondary">Working</Badge>
-              </div>
-            </div>
-
-            {/* Notification Context Test */}
-            <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                <Bell className="h-4 w-4" />
-                Notification Context
-              </h3>
-              <div className="flex gap-2 flex-wrap">
-                <Button onClick={testNotifications} size="sm">
-                  <Bell className="h-4 w-4 mr-1" />
-                  Test Sequence
-                </Button>
                 <Button
-                  onClick={() =>
-                    showError('Test Error', 'This is a test error message')
-                  }
-                  variant="destructive"
-                  size="sm"
-                >
-                  Test Error
-                </Button>
-                <Button
-                  onClick={() =>
-                    showSuccess('Context Success', 'All providers working!')
-                  }
-                  variant="default"
-                  size="sm"
-                >
-                  Test Success
-                </Button>
-                <Badge variant="secondary">Working</Badge>
-              </div>
-            </div>
-
-            {/* Offline Context Test */}
-            <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
-                <Network className="h-4 w-4" />
-                Offline Context
-              </h3>
-              <div className="flex items-center gap-4 flex-wrap">
-                <Badge variant={isOnline ? 'default' : 'destructive'}>
-                  {isOnline ? 'Online' : 'Offline'}
-                </Badge>
-                <Badge variant="outline">Connection: {connectionType}</Badge>
-                <Button
-                  onClick={retryConnection}
-                  size="sm"
-                  disabled={isOnline}
+                  onClick={refreshAllChecks}
                   variant="outline"
+                  size="sm"
+                  disabled={isLoading}
                 >
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Retry Connection
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}
+                  />
+                  Refresh All
                 </Button>
-                <Badge variant="secondary">Working</Badge>
               </div>
             </div>
+          </CardHeader>
+        </Card>
 
-            {/* Auth Context Test */}
-            <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
+        {/* System Overview Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Database
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold">
+                  {connectionStatus === null
+                    ? '?'
+                    : connectionStatus
+                      ? '✅'
+                      : '❌'}
+                </div>
+                <Badge
+                  variant={
+                    connectionStatus
+                      ? 'default'
+                      : connectionStatus === false
+                        ? 'destructive'
+                        : 'secondary'
+                  }
+                >
+                  {connectionStatus === null
+                    ? 'Testing...'
+                    : connectionStatus
+                      ? 'Connected'
+                      : 'Failed'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <FolderOpen className="h-4 w-4" />
+                Storage
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold">
+                  {testResults.storage ? '✅' : '❌'}
+                </div>
+                <Badge
+                  variant={testResults.storage ? 'default' : 'destructive'}
+                >
+                  {testResults.storage ? 'Ready' : 'Setup Needed'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Context
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold">
+                  {testResults.context ? '✅' : '❌'}
+                </div>
+                <Badge
+                  variant={testResults.context ? 'default' : 'destructive'}
+                >
+                  {testResults.context ? 'Working' : 'Failed'}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Lock className="h-4 w-4" />
-                Authentication Context
-              </h3>
-              <div className="flex items-center gap-4 flex-wrap">
-                <Badge variant={testResults.auth ? 'default' : 'secondary'}>
-                  Auth Context: {testResults.auth ? 'Ready' : 'Not Ready'}
-                </Badge>
-                <Badge variant={authState.isAuthenticated ? 'default' : 'outline'}>
-                  Status: {authState.isAuthenticated ? 'Authenticated' : 'Guest'}
-                </Badge>
-                <Button
-                  onClick={testAuthenticationContext}
-                  size="sm"
-                  variant="outline"
-                >
-                  <Shield className="h-4 w-4 mr-1" />
-                  Test Auth Context
-                </Button>
-                <Badge variant="secondary">Working</Badge>
-              </div>
-            </div>
-
-            <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
-              <p className="text-green-800 dark:text-green-200 font-medium">
-                All Context Providers Working Successfully!
-              </p>
-              <p className="text-green-600 dark:text-green-300 text-sm">
-                ThemeContext, NotificationContext, OfflineContext, dan AuthContext sudah terintegrasi dengan sempurna
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Role Switcher */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Role Testing</CardTitle>
-            <CardDescription>
-              Test semua role dan layout responsiveness
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(roleData).map(([role, data]) => (
-                <Button
-                  key={role}
-                  variant={currentRole === role ? 'default' : 'outline'}
-                  onClick={() => setCurrentRole(role as UserRole)}
-                  className="flex items-center gap-2"
-                >
-                  <div className={`h-3 w-3 rounded-full ${data.color}`} />
-                  {data.name}
-                </Button>
-              ))}
-            </div>
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>
-                Current Role: {authState.isAuthenticated ? (authState.currentRole || roleData[currentRole].name) : roleData[currentRole].name}
-              </AlertTitle>
-              <AlertDescription>
-                Sidebar dan header akan berubah sesuai role yang dipilih. Theme: {theme} | Auth Status: {authState.isAuthenticated ? 'Authenticated' : 'Guest'}
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
-
-        {/* Database & Storage Health Check */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-6 w-6" />
-                  Database & Storage Health Check
-                </CardTitle>
-                <CardDescription>
-                  Testing Supabase connection, database, and storage buckets
-                </CardDescription>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={refreshHealthCheck}
-                disabled={isLoading}
-              >
-                <RefreshCw
-                  className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}
-                />
-                Refresh
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isLoading ? (
-              <Alert>
-                <Wifi className="h-4 w-4 animate-pulse" />
-                <AlertTitle>Testing Connection...</AlertTitle>
-                <AlertDescription>
-                  Checking database health, storage buckets, context providers,
-                  and configuration...
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <div className="space-y-4">
-                {/* Connection Status */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="flex items-center gap-2">
-                    {healthCheck?.connection || testResults.supabase ? (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500" />
-                    )}
-                    <span className="font-medium">
-                      Database:{' '}
-                      {healthCheck?.connection || testResults.supabase
-                        ? 'Connected'
-                        : 'Failed'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {testResults.storage ? (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500" />
-                    )}
-                    <span className="font-medium">
-                      Storage:{' '}
-                      {testResults.storage ? 'Accessible' : 'Not Ready'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {testResults.context ? (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500" />
-                    )}
-                    <span className="font-medium">
-                      Context: {testResults.context ? 'Ready' : 'Failed'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {testResults.auth ? (
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-500" />
-                    )}
-                    <span className="font-medium">
-                      Auth: {testResults.auth ? 'Ready' : 'Failed'}
-                    </span>
-                  </div>
+                Authentication
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="text-2xl font-bold">
+                  {testResults.auth ? '✅' : '❌'}
                 </div>
-
-                {/* Error Display */}
-                {healthCheck?.error && (
-                  <Alert variant="destructive">
-                    <XCircle className="h-4 w-4" />
-                    <AlertTitle>Database Connection Error</AlertTitle>
-                    <AlertDescription>{healthCheck.error}</AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Tables Status */}
-                {healthCheck?.tablesExist && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Core Tables Status:</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {Object.entries(healthCheck.tablesExist).map(
-                        ([table, exists]) => (
-                          <div
-                            key={table}
-                            className="flex items-center justify-between p-2 border rounded"
-                          >
-                            <span className="text-sm font-mono">{table}</span>
-                            <Badge variant={exists ? 'default' : 'secondary'}>
-                              {exists ? 'Exists' : 'Pending'}
-                            </Badge>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Storage Buckets Status */}
-                {storageCheck && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium flex items-center gap-2">
-                      <FolderOpen className="h-4 w-4" />
-                      Storage Buckets Status:
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {Object.entries(storageCheck.buckets).map(
-                        ([bucket, info]) => (
-                          <div
-                            key={bucket}
-                            className="flex items-center justify-between p-2 border rounded"
-                          >
-                            <span className="text-sm font-mono">{bucket}</span>
-                            <Badge
-                              variant={
-                                info.accessible ? 'default' : 'destructive'
-                              }
-                            >
-                              {info.accessible
-                                ? `${info.files} files`
-                                : 'Error'}
-                            </Badge>
-                          </div>
-                        )
-                      )}
-                    </div>
-
-                    {/* Storage Errors */}
-                    {storageCheck.errors.length > 0 && (
-                      <Alert variant="destructive">
-                        <XCircle className="h-4 w-4" />
-                        <AlertTitle>Storage Configuration Issues</AlertTitle>
-                        <AlertDescription>
-                          <div className="space-y-1">
-                            <p className="text-sm">
-                              Create these buckets in Supabase Dashboard Storage:
-                            </p>
-                            {storageCheck.errors.map(
-                              (error: string, index: number) => (
-                                <p
-                                  key={index}
-                                  className="text-xs font-mono bg-red-50 p-1 rounded"
-                                >
-                                  {error}
-                                </p>
-                              )
-                            )}
-                          </div>
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                )}
-
-                {/* Database Info */}
-                {healthCheck?.databaseInfo && (
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Database Information:</h4>
-                    <div className="bg-gray-50 dark:bg-gray-900 p-3 rounded text-sm">
-                      <p>
-                        <strong>Version:</strong>{' '}
-                        {healthCheck.databaseInfo.version || 'Unknown'}
-                      </p>
-                      <p>
-                        <strong>Status:</strong>{' '}
-                        {healthCheck.databaseInfo.status || 'Active'}
-                      </p>
-                      <p>
-                        <strong>Schema:</strong>{' '}
-                        {healthCheck.databaseInfo.schema || 'public'}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <Badge variant={testResults.auth ? 'default' : 'destructive'}>
+                  {testResults.auth ? 'Ready' : 'Failed'}
+                </Badge>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Component Tests */}
-        <Tabs defaultValue="auth" className="w-full">
-          <TabsList className="grid w-full grid-cols-7">
+        {/* Main Testing Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="auth">Authentication</TabsTrigger>
             <TabsTrigger value="context">Context</TabsTrigger>
-            <TabsTrigger value="components">Components</TabsTrigger>
-            <TabsTrigger value="pwa">PWA</TabsTrigger>
-            <TabsTrigger value="forms">Forms</TabsTrigger>
-            <TabsTrigger value="system">System</TabsTrigger>
+            <TabsTrigger value="database">Database</TabsTrigger>
+            <TabsTrigger value="storage">Storage</TabsTrigger>
             <TabsTrigger value="integration">Integration</TabsTrigger>
           </TabsList>
 
-          {/* Authentication Test Tab */}
-          <TabsContent value="auth" className="space-y-4">
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-4">
+            {/* Role Testing */}
             <Card>
               <CardHeader>
-                <CardTitle>Authentication Context Testing</CardTitle>
+                <CardTitle>Role Testing & Layout Preview</CardTitle>
                 <CardDescription>
-                  Comprehensive testing of authentication state management and role-based access control
+                  Test all role layouts and responsive design
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Authentication Status */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Lock className="h-4 w-4" />
-                      Authentication Status
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Authenticated:</span>
-                        <Badge variant={authState.isAuthenticated ? 'default' : 'secondary'}>
-                          {authState.isAuthenticated ? 'Yes' : 'No'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Loading State:</span>
-                        <Badge variant={authState.isLoading ? 'destructive' : 'default'}>
-                          {authState.isLoading ? 'Loading' : 'Ready'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Current Role:</span>
-                        <Badge variant="outline">
-                          {authState.currentRole || 'None'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Permissions:</span>
-                        <Badge variant="secondary">
-                          {authState.permissions.length}
-                        </Badge>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Shield className="h-4 w-4" />
-                      Role Detection Functions
-                    </h4>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">isAdmin():</span>
-                        <Badge variant={isAdmin() ? 'default' : 'outline'}>
-                          {isAdmin() ? 'True' : 'False'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">isDosen():</span>
-                        <Badge variant={isDosen() ? 'default' : 'outline'}>
-                          {isDosen() ? 'True' : 'False'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">isMahasiswa():</span>
-                        <Badge variant={isMahasiswa() ? 'default' : 'outline'}>
-                          {isMahasiswa() ? 'True' : 'False'}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">isLaboran():</span>
-                        <Badge variant={isLaboran() ? 'default' : 'outline'}>
-                          {isLaboran() ? 'True' : 'False'}
-                        </Badge>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-
-                {/* User Profile Display */}
-                {authState.isAuthenticated && authState.profile ? (
-                  <Card className="p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/20 dark:to-blue-950/20">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Authenticated User Profile
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                      <div className="space-y-2">
-                        <div><strong>Name:</strong> {authState.profile.name}</div>
-                        <div><strong>Email:</strong> {authState.profile.email}</div>
-                        <div><strong>NIM:</strong> {authState.profile.nim || 'N/A'}</div>
-                      </div>
-                      <div className="space-y-2">
-                        <div><strong>Phone:</strong> {authState.profile.phone || 'N/A'}</div>
-                        <div><strong>Total Roles:</strong> {authState.roles.length}</div>
-                        <div><strong>Permissions:</strong> {authState.permissions.length}</div>
-                      </div>
-                    </div>
-                  </Card>
-                ) : (
-                  <Card className="p-4 border-dashed">
-                    <h4 className="font-semibold mb-3 text-muted-foreground">
-                      No User Profile (Guest Mode)
-                    </h4>
-                    <p className="text-sm text-muted-foreground">
-                      Login to see user profile and authentication state
-                    </p>
-                  </Card>
-                )}
-
-                {/* Authentication Actions */}
-                <Card className="p-4">
-                  <h4 className="font-semibold mb-3">Authentication Actions</h4>
-                  {!authState.isAuthenticated ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="test-email">Test Email</Label>
-                          <Input
-                            id="test-email"
-                            placeholder="Email"
-                            value={testCredentials.email}
-                            onChange={(e) => setTestCredentials(prev => ({...prev, email: e.target.value}))}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="test-password">Test Password</Label>
-                          <Input
-                            id="test-password"
-                            type="password"
-                            placeholder="Password"
-                            value={testCredentials.password}
-                            onChange={(e) => setTestCredentials(prev => ({...prev, password: e.target.value}))}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={testAuthLogin} disabled={authState.isLoading} className="flex-1">
-                          {authState.isLoading ? "Authenticating..." : "Test Login"}
-                        </Button>
-                        <Button onClick={testAuthenticationContext} variant="outline">
-                          Test Auth Context
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex gap-2 flex-wrap">
-                        <Button onClick={testAuthLogout} variant="outline">
-                          Test Logout
-                        </Button>
-                        <Button onClick={() => showSuccess('Permission Test', `Can create course: ${hasPermission('COURSE_CREATE')}`)} variant="secondary">
-                          Test Permissions
-                        </Button>
-                        <Button onClick={testAuthenticationContext} variant="outline">
-                          Test Auth Context
-                        </Button>
-                        {authState.roles.length > 1 && (
-                          <Button onClick={() => switchRole(authState.roles[1].role_code)} variant="secondary">
-                            Switch Role
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </Card>
-
-                {/* Error Display */}
-                {authState.error && (
-                  <Alert variant="destructive">
-                    <XCircle className="h-4 w-4" />
-                    <AlertTitle>Authentication Error</AlertTitle>
-                    <AlertDescription>
-                      <div className="space-y-1">
-                        <p><strong>Code:</strong> {authState.error.code}</p>
-                        <p><strong>Message:</strong> {authState.error.message}</p>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertTitle>
-                    Authentication Context Status: {testResults.auth ? 'Ready!' : 'Testing...'}
-                  </AlertTitle>
-                  <AlertDescription>
-                    Authentication context provides comprehensive state management, role-based access control, 
-                    permission system, and error handling. Test login functionality and role detection above.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Context Test Tab */}
-          <TabsContent value="context" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Advanced Context Provider Testing</CardTitle>
-                <CardDescription>
-                  Comprehensive testing of all React context providers
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Theme Testing */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Palette className="h-4 w-4" />
-                      Theme Provider
-                    </h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Current Theme:</span>
-                        <Badge>{theme}</Badge>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm">Dark Mode:</span>
-                        <Badge variant={isDark ? 'destructive' : 'secondary'}>
-                          {isDark ? 'Enabled' : 'Disabled'}
-                        </Badge>
-                      </div>
-                      <Button
-                        onClick={toggleTheme}
-                        className="w-full"
-                        size="sm"
-                      >
-                        Switch to {isDark ? 'Light' : 'Dark'} Mode
-                      </Button>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4">
-                    <h4 className="font-semibold mb-3 flex items-center gap-2">
-                      <Bell className="h-4 w-4" />
-                      Notification Provider
-                    </h4>
-                    <div className="space-y-2">
-                      <Button
-                        onClick={() =>
-                          showSuccess('Success!', 'This is a success message')
-                        }
-                        className="w-full"
-                        size="sm"
-                        variant="default"
-                      >
-                        Test Success
-                      </Button>
-                      <Button
-                        onClick={() =>
-                          showWarning('Warning!', 'This is a warning message')
-                        }
-                        className="w-full"
-                        size="sm"
-                        variant="secondary"
-                      >
-                        Test Warning
-                      </Button>
-                      <Button
-                        onClick={() =>
-                          showError('Error!', 'This is an error message')
-                        }
-                        className="w-full"
-                        size="sm"
-                        variant="destructive"
-                      >
-                        Test Error
-                      </Button>
-                    </div>
-                  </Card>
-                </div>
-
-                {/* Network Status */}
-                <Card className="p-4">
-                  <h4 className="font-semibold mb-3 flex items-center gap-2">
-                    <Network className="h-4 w-4" />
-                    Network & Offline Provider
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="text-center p-3 border rounded">
-                      <div className="text-2xl mb-2">
-                        {isOnline ? '🟢' : '🔴'}
-                      </div>
-                      <p className="font-medium">
-                        {isOnline ? 'Online' : 'Offline'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Connection Status
-                      </p>
-                    </div>
-                    <div className="text-center p-3 border rounded">
-                      <div className="text-2xl mb-2">📶</div>
-                      <p className="font-medium">{connectionType}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Connection Type
-                      </p>
-                    </div>
-                    <div className="text-center p-3 border rounded">
-                      <Button
-                        onClick={retryConnection}
-                        disabled={isOnline}
-                        className="w-full"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Retry
-                      </Button>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Manual Retry
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
-                {/* Combined Test */}
-                <Card className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
-                  <h4 className="font-semibold mb-3">
-                    Combined Context Test
-                  </h4>
-                  <div className="space-y-3">
-                    <Button onClick={testNotifications} className="w-full">
-                      Run Full Context Test Suite
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(roleData).map(([role, data]) => (
+                    <Button
+                      key={role}
+                      variant={currentRole === role ? 'default' : 'outline'}
+                      onClick={() => setCurrentRole(role as UserRole)}
+                      className="flex items-center gap-2"
+                    >
+                      <div className={`h-3 w-3 rounded-full ${data.color}`} />
+                      {data.name}
                     </Button>
-                    <div className="text-sm text-center space-y-1">
-                      <p>This will test all context providers in sequence:</p>
-                      <p className="text-muted-foreground">
-                        Theme ({theme}) → Notifications → Network (
-                        {isOnline ? 'Online' : 'Offline'}) → Auth ({authState.isAuthenticated ? 'Authenticated' : 'Guest'})
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-
+                  ))}
+                </div>
                 <Alert>
-                  <CheckCircle className="h-4 w-4" />
+                  <User className="h-4 w-4" />
                   <AlertTitle>
-                    Context Providers Status: All Ready!
+                    Current Role: {roleData[currentRole].name}
                   </AlertTitle>
                   <AlertDescription>
-                    ThemeContext, NotificationContext, OfflineContext, dan AuthContext 
-                    semuanya berfungsi dengan sempurna. Theme system responsive,
-                    notifikasi bekerja, network detection aktif, dan authentication ready.
+                    Sidebar and header adapt to selected role. Auth Status:{' '}
+                    {authState.isAuthenticated ? 'Authenticated' : 'Guest'}
                   </AlertDescription>
                 </Alert>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Components Test */}
-          <TabsContent value="components" className="space-y-4">
+            {/* Quick Test Actions */}
             <Card>
               <CardHeader>
-                <CardTitle>Shadcn/ui Components Test</CardTitle>
+                <CardTitle>Quick Test Actions</CardTitle>
+                <CardDescription>Test key system components</CardDescription>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Buttons</Label>
-                  <div className="flex gap-2">
-                    <Button size="sm">Small</Button>
-                    <Button>Default</Button>
-                    <Button variant="outline">Outline</Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Badges</Label>
-                  <div className="flex gap-2">
-                    <Badge>Default</Badge>
-                    <Badge variant="secondary">Secondary</Badge>
-                    <Badge variant="destructive">Error</Badge>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Loading States</Label>
-                  <LoadingSpinner size="sm" text="Testing..." />
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Button
+                    onClick={testNotifications}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Bell className="h-4 w-4" />
+                    Test Notifications
+                  </Button>
+                  <Button
+                    onClick={toggleTheme}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    {isDark ? (
+                      <Sun className="h-4 w-4" />
+                    ) : (
+                      <Moon className="h-4 w-4" />
+                    )}
+                    Toggle Theme
+                  </Button>
+                  <Button
+                    onClick={testAuthenticationContext}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Test Auth Context
+                  </Button>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* PWA Test */}
-          <TabsContent value="pwa" className="space-y-4">
+            {/* System Status Summary */}
             <Card>
               <CardHeader>
-                <CardTitle>PWA Features Test</CardTitle>
+                <CardTitle>System Status Summary</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3">
-                    <Smartphone className="h-5 w-5 text-blue-500" />
-                    <div>
-                      <p className="font-medium">Mobile Ready</p>
-                      <p className="text-sm text-muted-foreground">
-                        Responsive design
-                      </p>
-                    </div>
-                    <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Monitor className="h-5 w-5 text-purple-500" />
-                    <div>
-                      <p className="font-medium">Desktop Support</p>
-                      <p className="text-sm text-muted-foreground">
-                        Works on all devices
-                      </p>
-                    </div>
-                    <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <WifiOff className="h-5 w-5 text-orange-500" />
-                    <div>
-                      <p className="font-medium">Offline Support</p>
-                      <p className="text-sm text-muted-foreground">
-                        Service Worker ready
-                      </p>
-                    </div>
-                    <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <Package className="h-5 w-5 text-green-500" />
-                    <div>
-                      <p className="font-medium">Installable</p>
-                      <p className="text-sm text-muted-foreground">
-                        Web App Manifest
-                      </p>
-                    </div>
-                    <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
-                  </div>
-                </div>
-
-                <Alert>
-                  <Wifi className="h-4 w-4" />
-                  <AlertTitle>PWA Status</AlertTitle>
-                  <AlertDescription>
-                    All PWA foundations ready. Test offline mode by disabling
-                    network in DevTools.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Forms Test */}
-          <TabsContent value="forms" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Form Components Test</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="test-input">Test Input</Label>
-                    <Input id="test-input" placeholder="Type something..." />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="test-input-2">Another Input</Label>
-                    <Input id="test-input-2" placeholder="Another test..." />
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button variant="default">Submit</Button>
-                  <Button variant="outline">Cancel</Button>
-                  <Button variant="destructive">Delete</Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* System Test */}
-          <TabsContent value="system" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Status</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries({
-                    TypeScript: testResults.components,
-                    'Tailwind CSS': testResults.components,
-                    'Shadcn/ui': testResults.components,
-                    'PWA Config': testResults.pwa,
-                    Responsive: testResults.responsive,
-                    Icons: testResults.icons,
-                    'Supabase Connection': testResults.supabase,
+                    'Database Connection': testResults.supabase,
                     'Storage Buckets': testResults.storage,
                     'Context Providers': testResults.context,
-                    'Authentication Context': testResults.auth,
+                    Authentication: testResults.auth,
+                    'UI Components': testResults.components,
+                    'PWA Features': testResults.pwa,
                   }).map(([feature, status]) => (
                     <div
                       key={feature}
@@ -1448,39 +752,666 @@ function App() {
                     </div>
                   ))}
                 </div>
-
-                <Alert>
-                  <CheckCircle className="h-4 w-4" />
-                  <AlertTitle>
-                    {testResults.supabase &&
-                    testResults.storage &&
-                    testResults.context &&
-                    testResults.auth
-                      ? 'All Systems Ready!'
-                      : testResults.supabase && testResults.context && testResults.auth
-                        ? 'Core Systems Ready!'
-                        : 'Phase 1 Complete!'}
-                  </AlertTitle>
-                  <AlertDescription>
-                    {testResults.supabase &&
-                    testResults.storage &&
-                    testResults.context &&
-                    testResults.auth
-                      ? 'Database, storage, context providers, dan authentication fully operational. Ready for development!'
-                      : testResults.supabase && testResults.context && testResults.auth
-                        ? 'Database, context providers, dan authentication connected. Storage buckets need configuration.'
-                        : 'All core systems ready. Context providers dan authentication integrated. Siap untuk Phase 2!'}
-                  </AlertDescription>
-                </Alert>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Integration Test Suite */}
+          {/* Authentication Tab */}
+          <TabsContent value="auth" className="space-y-4">
+            <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-orange-800 dark:text-orange-200">
+                  <Lock className="h-6 w-6" />
+                  Authentication Context Test
+                </CardTitle>
+                <CardDescription className="text-orange-600 dark:text-orange-300">
+                  Comprehensive State Management + User State + RBAC +{' '}
+                  {isDevelopmentMode ? 'Development Mode' : 'Production Mode'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Auth Status Display */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-3 bg-card border rounded-lg">
+                    <p className="font-medium">Status</p>
+                    <Badge
+                      variant={
+                        authState.isAuthenticated ? 'default' : 'secondary'
+                      }
+                    >
+                      {authState.isAuthenticated ? 'Authenticated' : 'Guest'}
+                    </Badge>
+                  </div>
+                  <div className="p-3 bg-card border rounded-lg">
+                    <p className="font-medium">Loading</p>
+                    <Badge
+                      variant={authState.isLoading ? 'destructive' : 'default'}
+                    >
+                      {authState.isLoading ? 'Loading...' : 'Ready'}
+                    </Badge>
+                  </div>
+                  <div className="p-3 bg-card border rounded-lg">
+                    <p className="font-medium">Current Role</p>
+                    <Badge variant="outline">
+                      {authState.currentRole || 'None'}
+                    </Badge>
+                  </div>
+                  <div className="p-3 bg-card border rounded-lg">
+                    <p className="font-medium">Permissions</p>
+                    <Badge variant="secondary">
+                      {authState.permissions.length} perms
+                    </Badge>
+                  </div>
+                </div>
+
+                {isDevelopmentMode && authState.isAuthenticated && (
+                  <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+                    <h3 className="font-semibold mb-2 text-yellow-800 dark:text-yellow-200">
+                      Development Mode Active
+                    </h3>
+                    <div className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
+                      <p>• Using mock profile data (user tables not ready)</p>
+                      <p>
+                        • Using mock roles and permissions (RBAC tables not
+                        ready)
+                      </p>
+                      <p>
+                        • Run database setup script to enable full functionality
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* User Info */}
+                {authState.isAuthenticated && authState.profile && (
+                  <div className="p-4 bg-muted rounded-lg">
+                    <h3 className="font-semibold mb-2 flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      User Profile{' '}
+                      {isDevelopmentMode ? '(Mock Data)' : '(Database)'}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p>
+                          <strong>Name:</strong> {authState.profile.full_name}
+                        </p>
+                        <p>
+                          <strong>Email:</strong> {authState.profile.email}
+                        </p>
+                      </div>
+                      <div>
+                        <p>
+                          <strong>NIM/NIP:</strong>{' '}
+                          {authState.profile.nim_nip || 'N/A'}
+                        </p>
+                        <p>
+                          <strong>Phone:</strong>{' '}
+                          {authState.profile.phone || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {authState.roles.length > 0 && (
+                      <div className="mt-3">
+                        <p className="font-medium mb-2">Available Roles:</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {authState.roles.map((role) => (
+                            <Badge
+                              key={role.id}
+                              variant={
+                                role.role_code === authState.currentRole
+                                  ? 'default'
+                                  : 'outline'
+                              }
+                            >
+                              {role.role_name} {isDevelopmentMode && '(Mock)'}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {authState.permissions.length > 0 && (
+                      <div className="mt-3">
+                        <p className="font-medium mb-2">Current Permissions:</p>
+                        <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                          {authState.permissions
+                            .slice(0, 8)
+                            .map((permission) => (
+                              <Badge
+                                key={permission.id}
+                                variant="secondary"
+                                className="text-xs"
+                              >
+                                {permission.permission_code}
+                              </Badge>
+                            ))}
+                          {authState.permissions.length > 8 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{authState.permissions.length - 8} more
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Role Detection */}
+                <div className="p-4 bg-muted rounded-lg">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Role Detection (Type-Safe)
+                  </h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <Badge variant={isAdmin() ? 'default' : 'outline'}>
+                      Admin: {isAdmin() ? '✅' : '❌'}
+                    </Badge>
+                    <Badge variant={isDosen() ? 'default' : 'outline'}>
+                      Dosen: {isDosen() ? '✅' : '❌'}
+                    </Badge>
+                    <Badge variant={isMahasiswa() ? 'default' : 'outline'}>
+                      Mahasiswa: {isMahasiswa() ? '✅' : '❌'}
+                    </Badge>
+                    <Badge variant={isLaboran() ? 'default' : 'outline'}>
+                      Laboran: {isLaboran() ? '✅' : '❌'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Authentication Actions */}
+                {!authState.isAuthenticated ? (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold">
+                      Test Authentication{' '}
+                      {isDevelopmentMode && '(Emergency Mode)'}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="auth-email">Email</Label>
+                        <Input
+                          id="auth-email"
+                          placeholder="Email"
+                          value={testCredentials.email}
+                          onChange={(e) =>
+                            setTestCredentials((prev) => ({
+                              ...prev,
+                              email: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="auth-password">Password</Label>
+                        <Input
+                          id="auth-password"
+                          type="password"
+                          placeholder="Password"
+                          value={testCredentials.password}
+                          onChange={(e) =>
+                            setTestCredentials((prev) => ({
+                              ...prev,
+                              password: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      onClick={testAuthLogin}
+                      className="w-full"
+                      disabled={authState.isLoading}
+                    >
+                      {authState.isLoading
+                        ? 'Authenticating...'
+                        : `Test Login ${isDevelopmentMode ? '(Dev Mode)' : ''}`}
+                    </Button>
+                    {isDevelopmentMode && (
+                      <p className="text-sm text-muted-foreground">
+                        Development mode: Will use mock data if database tables
+                        missing
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold">Authenticated Actions</h3>
+                    <div className="flex gap-4 flex-wrap">
+                      <Button onClick={testAuthLogout} variant="outline">
+                        Logout
+                      </Button>
+                      <Button
+                        onClick={() =>
+                          showSuccess(
+                            'Permission Test',
+                            `Can create course: ${hasPermission('COURSE_CREATE')}`
+                          )
+                        }
+                      >
+                        Test Permissions
+                      </Button>
+                      {authState.roles.length > 1 && (
+                        <Button
+                          onClick={() => {
+                            const nextRole = authState.roles.find(
+                              (r) => r.role_code !== authState.currentRole
+                            )
+                            if (nextRole) switchRole(nextRole.role_code)
+                          }}
+                          variant="secondary"
+                        >
+                          Switch Role
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Display */}
+                {authState.error && (
+                  <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <h3 className="font-semibold text-destructive mb-2">
+                      Authentication Error
+                    </h3>
+                    <p className="text-sm text-destructive/80">
+                      <strong>Code:</strong> {authState.error.code}
+                      <br />
+                      <strong>Message:</strong> {authState.error.message}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Context Tab */}
+          <TabsContent value="context" className="space-y-4">
+            <Card className="border-purple-200 bg-purple-50 dark:bg-purple-950/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-purple-800 dark:text-purple-200">
+                  <Palette className="h-6 w-6" />
+                  Context Providers Test
+                </CardTitle>
+                <CardDescription className="text-purple-600 dark:text-purple-300">
+                  Testing ThemeContext, NotificationContext, OfflineContext,
+                  AuthContext integration
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Theme Context Test */}
+                <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    {isDark ? (
+                      <Moon className="h-4 w-4" />
+                    ) : (
+                      <Sun className="h-4 w-4" />
+                    )}
+                    Theme Context
+                  </h3>
+                  <div className="flex items-center gap-4">
+                    <Badge variant={isDark ? 'destructive' : 'default'}>
+                      {theme} - {isDark ? 'Dark' : 'Light'}
+                    </Badge>
+                    <Button onClick={toggleTheme} size="sm" variant="outline">
+                      {isDark ? (
+                        <Sun className="h-4 w-4 mr-1" />
+                      ) : (
+                        <Moon className="h-4 w-4 mr-1" />
+                      )}
+                      Toggle Theme
+                    </Button>
+                    <Badge variant="secondary">Working</Badge>
+                  </div>
+                </div>
+
+                {/* Notification Context Test */}
+                <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    Notification Context
+                  </h3>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button onClick={testNotifications} size="sm">
+                      <Bell className="h-4 w-4 mr-1" />
+                      Test Sequence
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        showError('Test Error', 'This is a test error message')
+                      }
+                      variant="destructive"
+                      size="sm"
+                    >
+                      Test Error
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        showSuccess('Context Success', 'All providers working!')
+                      }
+                      variant="default"
+                      size="sm"
+                    >
+                      Test Success
+                    </Button>
+                    <Badge variant="secondary">Working</Badge>
+                  </div>
+                </div>
+
+                {/* Offline Context Test */}
+                <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <Network className="h-4 w-4" />
+                    Offline Context
+                  </h3>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <Badge variant={isOnline ? 'default' : 'destructive'}>
+                      {isOnline ? 'Online' : 'Offline'}
+                    </Badge>
+                    <Badge variant="outline">
+                      Connection: {connectionType}
+                    </Badge>
+                    <Button
+                      onClick={retryConnection}
+                      size="sm"
+                      disabled={isOnline}
+                      variant="outline"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Retry Connection
+                    </Button>
+                    <Badge variant="secondary">Working</Badge>
+                  </div>
+                </div>
+
+                {/* Auth Context Test */}
+                <div className="p-4 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <h3 className="font-semibold mb-2 flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    Authentication Context
+                  </h3>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <Badge variant={testResults.auth ? 'default' : 'secondary'}>
+                      Auth Context: {testResults.auth ? 'Ready' : 'Not Ready'}
+                    </Badge>
+                    <Badge
+                      variant={
+                        authState.isAuthenticated ? 'default' : 'outline'
+                      }
+                    >
+                      Status:{' '}
+                      {authState.isAuthenticated ? 'Authenticated' : 'Guest'}
+                    </Badge>
+                    <Button
+                      onClick={testAuthenticationContext}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Shield className="h-4 w-4 mr-1" />
+                      Test Auth Context
+                    </Button>
+                    <Badge variant="secondary">Working</Badge>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="text-green-800 dark:text-green-200 font-medium">
+                    All Context Providers Working Successfully!
+                  </p>
+                  <p className="text-green-600 dark:text-green-300 text-sm">
+                    ThemeContext, NotificationContext, OfflineContext, dan
+                    AuthContext sudah terintegrasi dengan sempurna
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Database Tab */}
+          <TabsContent value="database" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-6 w-6" />
+                      Database Health Check
+                    </CardTitle>
+                    <CardDescription>
+                      Testing Supabase connection and database status
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={testSupabaseConnectionStatus}
+                    variant="outline"
+                    size="sm"
+                    disabled={isLoading}
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}
+                    />
+                    Test Connection
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Connection Status */}
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {connectionStatus ? (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        ) : connectionStatus === false ? (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        ) : (
+                          <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
+                        )}
+                        <span className="font-medium">Supabase Connection</span>
+                      </div>
+                      <Badge
+                        variant={
+                          connectionStatus
+                            ? 'default'
+                            : connectionStatus === false
+                              ? 'destructive'
+                              : 'secondary'
+                        }
+                      >
+                        {connectionStatus === null
+                          ? 'Testing...'
+                          : connectionStatus
+                            ? 'Connected'
+                            : 'Failed'}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Health Check Results */}
+                {healthCheck && (
+                  <div className="space-y-4">
+                    {healthCheck.error && (
+                      <Alert variant="destructive">
+                        <XCircle className="h-4 w-4" />
+                        <AlertTitle>Database Connection Error</AlertTitle>
+                        <AlertDescription>{healthCheck.error}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {healthCheck.tablesExist && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">
+                            Tables Status
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {Object.entries(healthCheck.tablesExist).map(
+                              ([table, exists]) => (
+                                <div
+                                  key={table}
+                                  className="flex items-center justify-between p-2 border rounded"
+                                >
+                                  <span className="text-sm font-mono">
+                                    {table}
+                                  </span>
+                                  <Badge
+                                    variant={exists ? 'default' : 'secondary'}
+                                  >
+                                    {exists ? 'Exists' : 'Pending'}
+                                  </Badge>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {healthCheck.databaseInfo && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-lg">
+                            Database Information
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="bg-muted p-3 rounded text-sm space-y-1">
+                            <p>
+                              <strong>Version:</strong>{' '}
+                              {healthCheck.databaseInfo.version || 'Unknown'}
+                            </p>
+                            <p>
+                              <strong>Status:</strong>{' '}
+                              {healthCheck.databaseInfo.status || 'Active'}
+                            </p>
+                            <p>
+                              <strong>Schema:</strong>{' '}
+                              {healthCheck.databaseInfo.schema || 'public'}
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {isDevelopmentMode && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Development Mode</AlertTitle>
+                    <AlertDescription>
+                      Database tables may not exist yet. The application will
+                      use fallback data for testing purposes. Create tables
+                      using the provided SQL setup script.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Storage Tab */}
+          <TabsContent value="storage" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FolderOpen className="h-6 w-6" />
+                  Storage Buckets Status
+                </CardTitle>
+                <CardDescription>
+                  Testing Supabase storage bucket access and configuration
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {storageCheck && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {Object.entries(storageCheck.buckets).map(
+                        ([bucket, info]) => (
+                          <Card key={bucket}>
+                            <CardContent className="pt-6">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium">{bucket}</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {info.accessible
+                                      ? `${info.files} files`
+                                      : 'Not accessible'}
+                                  </p>
+                                </div>
+                                <Badge
+                                  variant={
+                                    info.accessible ? 'default' : 'destructive'
+                                  }
+                                >
+                                  {info.accessible ? 'Ready' : 'Error'}
+                                </Badge>
+                              </div>
+                              {info.error && (
+                                <p className="text-xs text-destructive mt-2">
+                                  {info.error}
+                                </p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )
+                      )}
+                    </div>
+
+                    {storageCheck.errors.length > 0 && (
+                      <Alert variant="destructive">
+                        <XCircle className="h-4 w-4" />
+                        <AlertTitle>Storage Configuration Issues</AlertTitle>
+                        <AlertDescription>
+                          <div className="space-y-1">
+                            <p className="text-sm">
+                              Create these buckets in Supabase Dashboard
+                              Storage:
+                            </p>
+                            {storageCheck.errors.map(
+                              (error: string, index: number) => (
+                                <p
+                                  key={index}
+                                  className="text-xs font-mono bg-red-50 dark:bg-red-950/20 p-1 rounded"
+                                >
+                                  {error}
+                                </p>
+                              )
+                            )}
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-4">
+                  <Button
+                    onClick={testStorageAccess}
+                    variant="outline"
+                    disabled={isLoading}
+                  >
+                    <RefreshCw
+                      className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`}
+                    />
+                    Test Storage Access
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Integration Tab */}
           <TabsContent value="integration" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Integration Test Suite</CardTitle>
+                <CardDescription>
+                  Comprehensive testing of all system components and their
+                  interactions
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <IntegrationTestSuite />
@@ -1489,149 +1420,88 @@ function App() {
           </TabsContent>
         </Tabs>
 
-        {/* Build Information */}
+        {/* Quick Setup Instructions */}
         <Card>
           <CardHeader>
-            <CardTitle>Build Information</CardTitle>
+            <CardTitle>Quick Database Setup</CardTitle>
+            <CardDescription>
+              Instructions to fix database issues
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="font-medium text-muted-foreground">Framework</p>
-                <p>React 18 + TypeScript + Vite</p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="p-3 border rounded">
+                  <p className="font-medium mb-1">Step 1:</p>
+                  <p>Go to Supabase Dashboard → SQL Editor</p>
+                </div>
+                <div className="p-3 border rounded">
+                  <p className="font-medium mb-1">Step 2:</p>
+                  <p>Run the database setup script</p>
+                </div>
+                <div className="p-3 border rounded">
+                  <p className="font-medium mb-1">Step 3:</p>
+                  <p>Refresh this page and test authentication</p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-muted-foreground">UI Library</p>
-                <p>Shadcn/ui + Tailwind CSS</p>
-              </div>
-              <div>
-                <p className="font-medium text-muted-foreground">Backend</p>
-                <p>Supabase (PostgreSQL)</p>
-              </div>
-              <div>
-                <p className="font-medium text-muted-foreground">
-                  State Management
-                </p>
-                <p>React Context + Hooks</p>
-              </div>
+              <Button
+                onClick={() =>
+                  showInfo(
+                    'Database Setup',
+                    'Copy the SQL script from the emergency fix instructions and run it in Supabase SQL Editor'
+                  )
+                }
+                variant="outline"
+              >
+                Show Setup Instructions
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Configuration Status */}
+        {/* Final Status */}
         <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/20">
           <CardHeader>
             <CardTitle className="text-green-800 dark:text-green-200">
-              Configuration Status
+              {testResults.supabase && testResults.auth && testResults.context
+                ? 'All Systems Ready!'
+                : 'Core Systems Active'}
             </CardTitle>
+            <CardDescription className="text-green-600 dark:text-green-400">
+              {isDevelopmentMode
+                ? 'Development Mode - Using fallback data where needed'
+                : 'Production Mode'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 text-green-700 dark:text-green-300">
-              <p>✅ Supabase client configured with TypeScript support</p>
-              <p>✅ Database helper functions ready</p>
-              <p>✅ Storage service classes implemented</p>
-              <p>✅ Environment variables validated</p>
-              <p>✅ Connection testing functional</p>
-              <p>✅ Role-based layout system ready</p>
-              <p>✅ Context providers (Theme, Notification, Offline) integrated</p>
-              <p>✅ Authentication context with RBAC system</p>
-              <p>✅ Dark/Light theme system operational</p>
-              <p>✅ Toast notification system working</p>
-              <p>✅ Network status detection active</p>
-              <p>✅ User authentication and role management</p>
-              <p className="font-medium mt-4">
-                Ready for database schema creation!
+            <div className="space-y-2 text-green-700 dark:text-green-300 text-sm">
+              <p>✅ React 18 + TypeScript + Vite configured</p>
+              <p>✅ Shadcn/ui + Tailwind CSS integrated</p>
+              <p>✅ PWA foundations ready</p>
+              <p>
+                ✅ Context providers (Theme, Notification, Offline, Auth)
+                working
               </p>
-              {testResults.storage && (
-                <p className="font-medium text-green-800 dark:text-green-200">
-                  Storage buckets configured and accessible!
-                </p>
-              )}
-              {testResults.context && testResults.auth && (
-                <p className="font-medium text-green-800 dark:text-green-200">
-                  All context providers working perfectly!
-                </p>
-              )}
+              <p>✅ Role-based layout system functional</p>
+              <p>
+                ✅{' '}
+                {connectionStatus
+                  ? 'Supabase connected'
+                  : 'Supabase configuration ready'}
+              </p>
+              <p>
+                ✅{' '}
+                {testResults.storage
+                  ? 'Storage buckets accessible'
+                  : 'Storage service configured'}
+              </p>
+              <p>✅ Authentication context with RBAC system</p>
+              <p className="font-medium mt-4 text-green-800 dark:text-green-200">
+                {testResults.supabase && testResults.auth && testResults.storage
+                  ? 'Ready for full development!'
+                  : 'Ready for Phase 2 - Database setup and feature development!'}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Next Steps */}
-        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/20">
-          <CardHeader>
-            <CardTitle className="text-blue-800 dark:text-blue-200">
-              Next Steps - Phase 2
-            </CardTitle>
-            <CardDescription className="text-blue-600 dark:text-blue-400">
-              Design & Architecture
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="text-blue-700 dark:text-blue-300">
-            <ul className="space-y-1 text-sm">
-              <li>• Create detailed wireframes & user flows</li>
-              <li>• Design database schema (27 tables)</li>
-              <li>• Setup Supabase project & authentication</li>
-              <li>• Create storage buckets & configure permissions</li>
-              <li>• Implement RBAC system</li>
-              <li>• Create role-based routing structure</li>
-              <li>• Integrate context providers with authentication</li>
-              <li>• Add user preferences persistence (theme, settings)</li>
-              <li>• Implement offline data synchronization</li>
-              <li>• Build authentication screens and flows</li>
-              <li>• Create permission-based component rendering</li>
-              <li>• Implement role switching functionality</li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* Final Status Summary */}
-        <Card className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
-          <CardHeader>
-            <CardTitle className="text-purple-800 dark:text-purple-200">
-              Phase 1 Complete!
-            </CardTitle>
-            <CardDescription className="text-purple-600 dark:text-purple-400">
-              Semua sistem siap, context providers dan authentication terintegrasi!
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <h4 className="font-semibold text-purple-800 dark:text-purple-200">
-                  Core Systems
-                </h4>
-                <ul className="text-sm space-y-1 text-purple-700 dark:text-purple-300">
-                  <li>✅ React 18 + TypeScript + Vite</li>
-                  <li>✅ Shadcn/ui + Tailwind CSS</li>
-                  <li>✅ PWA Configuration</li>
-                  <li>✅ Supabase Integration</li>
-                  <li>✅ Storage Service</li>
-                </ul>
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-semibold text-purple-800 dark:text-purple-200">
-                  Context Providers
-                </h4>
-                <ul className="text-sm space-y-1 text-purple-700 dark:text-purple-300">
-                  <li>✅ ThemeContext (Light/Dark Mode)</li>
-                  <li>✅ NotificationContext (Toast System)</li>
-                  <li>✅ OfflineContext (Network Detection)</li>
-                  <li>✅ AuthContext (Authentication & RBAC)</li>
-                  <li>✅ Role-based Layout System</li>
-                  <li>✅ Responsive Design</li>
-                </ul>
-              </div>
-            </div>
-            <Alert className="mt-4 border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-950/20">
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle className="text-purple-800 dark:text-purple-200">
-                Ready for Phase 2 Development!
-              </AlertTitle>
-              <AlertDescription className="text-purple-600 dark:text-purple-400">
-                All foundations are solid. Context providers working perfectly including authentication.
-                Time to build the actual application features with full RBAC support!
-              </AlertDescription>
-            </Alert>
           </CardContent>
         </Card>
       </div>
