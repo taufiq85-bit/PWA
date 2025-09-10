@@ -178,8 +178,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_USER', payload: user })
       dispatch({ type: 'SET_LAST_ACTIVITY', payload: Date.now() })
 
-      // Load profile
-      const profile = await supabaseHelpers.getUserProfile(user.id)
+      // Load profile with enhanced error handling
+      let profile = await supabaseHelpers.getUserProfile(user.id)
+      
+      // If profile doesn't exist, try to create it from auth metadata
+      if (!profile && user.email) {
+        try {
+          console.log('Creating missing profile for user:', user.id)
+          profile = await supabaseHelpers.createUserProfile({
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || user.email.split('@')[0],
+            username: user.user_metadata?.username,
+            nim_nip: user.user_metadata?.nim_nip || user.user_metadata?.nim || user.user_metadata?.nip,
+            phone: user.user_metadata?.phone,
+            role_default: user.user_metadata?.role || 'MAHASISWA'
+          })
+        } catch (createError) {
+          console.warn('Failed to create profile automatically:', createError)
+          // Create a temporary profile from auth data for UI consistency
+          profile = {
+            id: user.id,
+            email: user.email,
+            full_name: user.user_metadata?.full_name || user.email.split('@')[0],
+            username: user.user_metadata?.username || '',
+            nim_nip: user.user_metadata?.nim_nip || user.user_metadata?.nim || user.user_metadata?.nip || '',
+            phone: user.user_metadata?.phone || '',
+            avatar_url: user.user_metadata?.avatar_url || '',
+            role_default: user.user_metadata?.role || 'MAHASISWA',
+            is_active: true,
+            email_verified: user.email_confirmed_at ? true : false,
+            created_at: user.created_at,
+            updated_at: new Date().toISOString()
+          }
+        }
+      }
+
       if (profile) {
         dispatch({ type: 'SET_PROFILE', payload: profile })
       }
@@ -206,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const currentRole =
         roles.find((role) => role.is_active)?.role_code ||
         roles[0]?.role_code ||
+        profile?.role_default ||
         null
       dispatch({ type: 'SET_CURRENT_ROLE', payload: currentRole })
     } catch (error) {
@@ -243,19 +278,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Enhanced register function with automatic profile creation
   const register = async (data: RegisterData): Promise<AuthResult> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true })
       dispatch({ type: 'CLEAR_ERROR' })
 
+      // Prepare auth metadata
+      const authMetadata: Record<string, any> = {
+        full_name: data.fullName,
+      }
+      
+      if (data.phone) authMetadata.phone = data.phone
+      if (data.nim) authMetadata.nim = data.nim
+      if (data.nip) authMetadata.nip = data.nip
+      if (data.role) authMetadata.role = data.role
+      if (data.username) authMetadata.username = data.username
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
-          data: {
-            full_name: data.fullName,
-          },
-        },
+          data: authMetadata
+        }
       })
 
       if (authError) {
@@ -268,7 +313,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: 'Gagal membuat user' }
       }
 
-      return { success: true }
+      // Auto-create profile after auth user created
+      try {
+        await supabaseHelpers.createUserProfile({
+          id: authData.user.id,
+          email: authData.user.email!,
+          full_name: data.fullName,
+          username: data.username,
+          phone: data.phone,
+          nim_nip: data.nim || data.nip,
+          role_default: data.role || 'MAHASISWA'
+        })
+        
+        console.log('✅ Profile created successfully during registration')
+      } catch (profileError) {
+        console.warn('⚠️ Profile creation failed during registration, will retry on login:', profileError)
+        // Don't fail registration if profile creation fails
+        // The profile will be created automatically on first login
+      }
+
+      return { 
+        success: true
+      }
     } catch (error: any) {
       const errorMessage = error.message || 'Terjadi kesalahan saat registrasi'
       dispatch({ type: 'SET_ERROR', payload: errorMessage })
@@ -324,7 +390,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: 'User tidak ditemukan' }
       }
 
-      await supabaseHelpers.updateUserProfile(state.user.id, updates)
+      const updatedProfile = await supabaseHelpers.updateUserProfile(state.user.id, updates)
+      if (updatedProfile) {
+        dispatch({ type: 'SET_PROFILE', payload: updatedProfile })
+      }
+      
+      // Reload user data to ensure consistency
       await loadUserData(state.user)
 
       return { success: true }
@@ -439,10 +510,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'CLEAR_ERROR' })
   }
 
-  // Missing methods required by AuthContextType
+  // Enhanced profile fetching with automatic creation fallback
   const fetchProfile = async (userId: string): Promise<void> => {
     try {
-      const profile = await supabaseHelpers.getUserProfile(userId)
+      let profile = await supabaseHelpers.getUserProfile(userId)
+      
+      // If profile doesn't exist and we have a current user, try to create it
+      if (!profile && state.user && state.user.id === userId && state.user.email) {
+        try {
+          profile = await supabaseHelpers.createUserProfile({
+            id: userId,
+            email: state.user.email,
+            full_name: state.user.user_metadata?.full_name || state.user.email.split('@')[0],
+            username: state.user.user_metadata?.username,
+            nim_nip: state.user.user_metadata?.nim_nip || state.user.user_metadata?.nim || state.user.user_metadata?.nip,
+            phone: state.user.user_metadata?.phone,
+            role_default: state.user.user_metadata?.role || 'MAHASISWA'
+          })
+        } catch (createError) {
+          console.warn('Failed to create profile in fetchProfile:', createError)
+        }
+      }
+      
       if (profile) {
         dispatch({ type: 'SET_PROFILE', payload: profile })
       }
@@ -510,24 +599,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const fetchUserPermissions = async (roleIds: string[]): Promise<void> => {
+  const fetchUserPermissions = async (_roleIds: string[]): Promise<void> => {
     try {
       // If no user is authenticated, return early
       if (!state.user) {
         return
       }
 
-      // You might need to modify this based on your supabaseHelpers implementation
-      // If it expects roleIds, use them; otherwise use the current user's roles
-      let permissionsData
-      if (roleIds.length > 0) {
-        // If your supabaseHelpers has a method to get permissions by role IDs
-        // permissionsData = await supabaseHelpers.getPermissionsByRoleIds(roleIds)
-        // For now, using the existing method
-        permissionsData = await supabaseHelpers.getUserPermissions(state.user.id)
-      } else {
-        permissionsData = await supabaseHelpers.getUserPermissions(state.user.id)
-      }
+      // Use the existing getUserPermissions method
+      const permissionsData = await supabaseHelpers.getUserPermissions(state.user.id)
 
       const permissions: UserPermission[] = permissionsData.map((perm: any) => ({
         id: perm.id,

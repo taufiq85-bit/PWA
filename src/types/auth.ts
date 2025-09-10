@@ -82,6 +82,7 @@ export interface LoginCredentials {
 
 // FIXED: Updated RegisterData to match your database schema
 export interface RegisterData {
+  username?: string
   email: string
   password: string
   confirmPassword: string // Added for password confirmation

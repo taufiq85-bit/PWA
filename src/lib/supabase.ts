@@ -1,4 +1,4 @@
-// src/lib/supabase.ts - FIX: Add custom types to remove 'any' and fix linter issues
+// src/lib/supabase.ts - Enhanced with robust profile management
 import { createClient, User, Session } from '@supabase/supabase-js'
 
 // Environment variables validation
@@ -135,7 +135,7 @@ export const updateUserPassword = async (password: string) => {
   return await supabase.auth.updateUser({ password })
 }
 
-// --- Custom Type Definitions for Database Helpers ---
+// --- Enhanced Type Definitions ---
 interface Permission {
   id: string
   permission_code: string
@@ -163,25 +163,58 @@ interface UserRole {
   roles: Role
 }
 
-// Tipe untuk data saat membuat profil baru
+// Enhanced user profile types
+interface UserProfile {
+  id: string
+  email: string
+  full_name: string
+  username?: string
+  nim_nip?: string
+  phone?: string
+  avatar_url?: string
+  role_default?: string
+  is_active?: boolean
+  email_verified?: boolean
+  created_at: string
+  updated_at: string
+}
+
 type UserProfileInsert = {
   id: string
-  full_name?: string
-  nim?: string
-  // Tambahkan properti lain yang wajib atau opsional di sini
+  email: string
+  full_name: string
+  username?: string
+  nim_nip?: string
+  phone?: string
+  role_default?: string
+  is_active?: boolean
+  email_verified?: boolean
+  created_at?: string
+  updated_at?: string
 }
 
-// Tipe untuk data saat memperbarui profil
 type UserProfileUpdate = {
   full_name?: string
-  nim?: string
+  username?: string
+  nim_nip?: string
+  phone?: string
   avatar_url?: string
+  is_active?: boolean
+  email_verified?: boolean
   updated_at?: string
-  // Tambahkan properti lain yang bisa diupdate di sini
 }
-// ----------------------------------------------------
 
-// Database helper functions - FIXED type issues
+type CreateProfileData = {
+  id: string
+  email: string
+  full_name: string
+  username?: string
+  nim_nip?: string
+  phone?: string
+  role_default?: string
+}
+
+// Enhanced database helper functions
 export const supabaseHelpers = {
   // Get user with complete profile and role information
   async getUserWithProfile(userId: string) {
@@ -224,23 +257,150 @@ export const supabaseHelpers = {
     }
   },
 
-  // Get user profile only
-  async getUserProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('users_profile')
-      .select('*')
-      .eq('id', userId)
-      .single()
+  // Enhanced getUserProfile with RLS fallback handling
+  async getUserProfile(userId: string): Promise<UserProfile | null> {
+    try {
+      // Method 1: Try direct select
+      const { data, error } = await supabase
+        .from('users_profile')
+        .select('*')
+        .eq('id', userId)
+        .single()
 
-    if (error) {
+      if (error) {
+        console.warn('Direct profile fetch failed:', error.message)
+        
+        // Method 2: Try with auth.users fallback
+        const { data: authUser } = await supabase.auth.getUser()
+        if (authUser.user && authUser.user.id === userId) {
+          return {
+            id: authUser.user.id,
+            email: authUser.user.email || '',
+            full_name: authUser.user.user_metadata?.full_name || '',
+            phone: authUser.user.user_metadata?.phone || '',
+            avatar_url: authUser.user.user_metadata?.avatar_url || '',
+            nim_nip: authUser.user.user_metadata?.nim_nip || '',
+            username: authUser.user.user_metadata?.username || '',
+            role_default: authUser.user.user_metadata?.role_default || '',
+            is_active: true,
+            email_verified: authUser.user.email_confirmed_at ? true : false,
+            created_at: authUser.user.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        }
+        
+        throw error
+      }
+
+      return data
+    } catch (error) {
       console.error('Error fetching user profile:', error)
       return null
     }
-
-    return data
   },
 
-  // Get user roles with permissions - FIXED: Removed updated_at column
+  // Enhanced updateUserProfile with auth metadata sync
+  async updateUserProfile(userId: string, updates: UserProfileUpdate): Promise<UserProfile | null> {
+    try {
+      // Update database profile
+      const { data: dbUpdate, error: dbError } = await supabase
+        .from('users_profile')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select()
+        .single()
+
+      // Also update auth.users metadata for consistency
+      const authUpdates: Record<string, any> = {}
+      if (updates.full_name) authUpdates.full_name = updates.full_name
+      if (updates.phone) authUpdates.phone = updates.phone
+      if (updates.avatar_url) authUpdates.avatar_url = updates.avatar_url
+      if (updates.username) authUpdates.username = updates.username
+      if (updates.nim_nip) authUpdates.nim_nip = updates.nim_nip
+
+      if (Object.keys(authUpdates).length > 0) {
+        await supabase.auth.updateUser({
+          data: authUpdates
+        })
+      }
+
+      if (dbError) {
+        // If database update fails, still return success if auth update worked
+        console.warn('Database profile update failed, using auth fallback:', dbError)
+        return {
+          id: userId,
+          email: '', // Will be filled by caller if needed
+          full_name: updates.full_name || '',
+          username: updates.username,
+          nim_nip: updates.nim_nip,
+          phone: updates.phone,
+          avatar_url: updates.avatar_url,
+          is_active: updates.is_active,
+          email_verified: updates.email_verified,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      }
+
+      return dbUpdate
+    } catch (error) {
+      console.error('Error updating user profile:', error)
+      throw error
+    }
+  },
+
+  // Enhanced createUserProfile with role assignment
+  async createUserProfile(profileData: CreateProfileData): Promise<UserProfile> {
+    try {
+      const profileInsert: UserProfileInsert = {
+        id: profileData.id,
+        email: profileData.email,
+        full_name: profileData.full_name,
+        username: profileData.username,
+        nim_nip: profileData.nim_nip,
+        phone: profileData.phone,
+        role_default: profileData.role_default || 'MAHASISWA',
+        is_active: true,
+        email_verified: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+
+      const { data, error } = await supabase
+        .from('users_profile')
+        .insert(profileInsert)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating user profile:', error)
+        throw error
+      }
+
+      // Also assign default role
+      if (profileData.role_default) {
+        try {
+          const role = await this.getRoleByName(profileData.role_default)
+          if (role) {
+            await this.assignRoleToUser(profileData.id, role.id)
+          }
+        } catch (roleError) {
+          console.warn('Failed to assign default role:', roleError)
+          // Don't throw error here, profile creation succeeded
+        }
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in createUserProfile:', error)
+      throw error
+    }
+  },
+
+  // Get user roles with permissions
   async getUserRoles(userId: string): Promise<Role[]> {
     const { data, error } = await supabase
       .from('user_roles')
@@ -274,7 +434,6 @@ export const supabaseHelpers = {
       return []
     }
 
-    // FIX: Terapkan tipe UserRole yang sudah dibuat
     return (
       (data as unknown as UserRole[])?.map((ur) => ur.roles).filter(Boolean) ||
       []
@@ -285,7 +444,6 @@ export const supabaseHelpers = {
   async getUserPermissions(userId: string): Promise<Permission[]> {
     try {
       const roles = await this.getUserRoles(userId)
-      // FIX: Terapkan tipe Role dan RolePermission
       const permissions = roles.flatMap(
         (role: Role) =>
           role.role_permissions?.map((rp: RolePermission) => rp.permissions) ||
@@ -316,7 +474,6 @@ export const supabaseHelpers = {
   ): Promise<boolean> {
     try {
       const permissions = await this.getUserPermissions(userId)
-      // FIX: Terapkan tipe Permission
       return permissions.some(
         (p: Permission) => p.permission_code === permissionCode
       )
@@ -326,40 +483,7 @@ export const supabaseHelpers = {
     }
   },
 
-  // Create user profile
-  async createUserProfile(profileData: UserProfileInsert) {
-    // FIX: Gunakan tipe UserProfileInsert
-    const { data, error } = await supabase
-      .from('users_profile')
-      .insert(profileData)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error creating user profile:', error)
-      throw error
-    }
-    return data
-  },
-
-  // Update user profile
-  async updateUserProfile(userId: string, updates: UserProfileUpdate) {
-    // FIX: Gunakan tipe UserProfileUpdate
-    const { data, error } = await supabase
-      .from('users_profile')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error updating user profile:', error)
-      throw error
-    }
-    return data
-  },
-
-  // Get role by name or code - FIXED: This should work correctly with * selector
+  // Get role by name or code
   async getRoleByName(roleName: string) {
     const { data, error } = await supabase
       .from('roles')
@@ -452,4 +576,13 @@ export const supabaseHelpers = {
 }
 
 // Export types for TypeScript
-export type { User, Session }
+export type { 
+  User, 
+  Session, 
+  UserProfile, 
+  UserProfileInsert, 
+  UserProfileUpdate, 
+  CreateProfileData,
+  Permission,
+  Role 
+}

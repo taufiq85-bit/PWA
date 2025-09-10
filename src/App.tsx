@@ -1,4 +1,4 @@
-// src/App.tsx - Fixed Infinite Re-render Issue
+// src/App.tsx - Updated with LoginTester Integration
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,7 @@ import { useAuth } from '@/hooks/useAuth'
 
 // Import testing components
 import { IntegrationTestSuite } from '@/components/testing/IntegrationTestSuite'
+import { LoginTester } from '@/components/LoginTester'
 
 // Type definitions
 type UserRole = 'admin' | 'dosen' | 'mahasiswa' | 'laboran'
@@ -1020,6 +1021,22 @@ function App() {
                     </p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+            
+            {/* Login Form Testing Component */}
+            <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                  <Lock className="h-6 w-6" />
+                  Login Form Testing
+                </CardTitle>
+                <CardDescription className="text-blue-600 dark:text-blue-300">
+                  Test LoginForm component dengan validation dan end-to-end testing
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <LoginTester />
               </CardContent>
             </Card>
           </TabsContent>
