@@ -337,36 +337,36 @@ export function IntegrationTestSuite() {
     try {
       const startTime = Date.now()
 
-const mockUserProfile = {
-  id: 'test-user-id',
-  email: 'test@example.com',
-  name: 'Test User',
-  nim_nip: '12345678',
-  full_name: 'Test User Full Name',
-  phone: undefined,        // CHANGED from null
-  avatar_url: undefined,   // CHANGED from null
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z'
-}
-const mockRole: Role = {
-  id: 'test',
-  role_name: 'Test Role',
-  role_code: 'TEST',
-  description: 'Test',
-  is_active: true,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-}
+      const mockUserProfile = {
+        id: 'test-user-id',
+        email: 'test@example.com',
+        name: 'Test User',
+        nim_nip: '12345678',
+        full_name: 'Test User Full Name',
+        phone: undefined, // CHANGED from null
+        avatar_url: undefined, // CHANGED from null
+        created_at: '2024-01-01T00:00:00Z',
+        updated_at: '2024-01-01T00:00:00Z',
+      }
+      const mockRole: Role = {
+        id: 'test',
+        role_name: 'Test Role',
+        role_code: 'TEST',
+        description: 'Test',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
 
-results.push({
-  name: 'Type Imports',
-  status: 'passed',
-  duration: Date.now() - startTime,
-  details: {
-    profileKeys: Object.keys(mockUserProfile).length,
-    roleKeys: Object.keys(mockRole).length,
-  },
-})
+      results.push({
+        name: 'Type Imports',
+        status: 'passed',
+        duration: Date.now() - startTime,
+        details: {
+          profileKeys: Object.keys(mockUserProfile).length,
+          roleKeys: Object.keys(mockRole).length,
+        },
+      })
     } catch (error) {
       results.push({
         name: 'Type Imports',

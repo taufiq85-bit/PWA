@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { LoginForm } from './forms/LoginForm'
 import { useAuthContext } from '../context/AuthContext'
 import { Button } from './ui/button'
@@ -9,7 +9,10 @@ export function LoginTester() {
   const [testResults, setTestResults] = useState<string[]>([])
 
   const addResult = (result: string) => {
-    setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${result}`])
+    setTestResults((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString()}: ${result}`,
+    ])
   }
 
   const runEndToEndTest = () => {
@@ -24,12 +27,12 @@ export function LoginTester() {
 
   const testLoginFlow = async () => {
     addResult('Testing login flow manually...')
-    
+
     // Test validation
     addResult('✓ Email field validation working')
     addResult('✓ Password field validation working')
     addResult('✓ Form submission validation working')
-    
+
     // Test authentication
     if (isAuthenticated) {
       addResult('✓ User is authenticated')
@@ -56,7 +59,7 @@ export function LoginTester() {
           <CardTitle>Login Form Test</CardTitle>
         </CardHeader>
         <CardContent>
-          <LoginForm 
+          <LoginForm
             onSuccess={() => addResult('✅ Login successful!')}
             onForgotPassword={() => addResult('🔗 Forgot password clicked')}
             className="max-w-none"
@@ -88,13 +91,18 @@ export function LoginTester() {
         <CardContent>
           <div className="space-y-2">
             <div className="text-sm">
-              <p>Auth Status: {isAuthenticated ? '✅ Authenticated' : '❌ Not Authenticated'}</p>
+              <p>
+                Auth Status:{' '}
+                {isAuthenticated ? '✅ Authenticated' : '❌ Not Authenticated'}
+              </p>
               <p>User: {user?.email || 'None'}</p>
             </div>
-            
+
             <div className="h-64 overflow-y-auto border rounded p-2 bg-gray-50 text-xs">
               {testResults.length === 0 ? (
-                <p className="text-gray-500">No test results yet. Run tests to see results.</p>
+                <p className="text-gray-500">
+                  No test results yet. Run tests to see results.
+                </p>
               ) : (
                 testResults.map((result, index) => (
                   <div key={index} className="mb-1">

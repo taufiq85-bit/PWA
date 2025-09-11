@@ -6,7 +6,7 @@ export function ProfileManager() {
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
     phone: profile?.phone || '',
-    nim_nip: profile?.nim_nip || ''
+    nim_nip: profile?.nim_nip || '',
   })
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -29,7 +29,7 @@ export function ProfileManager() {
   return (
     <div style={{ padding: '20px', border: '1px solid #ddd' }}>
       <h3>Profile Management Test</h3>
-      
+
       <div style={{ marginBottom: '20px' }}>
         <p>User ID: {user?.id}</p>
         <p>Email: {user?.email}</p>
@@ -39,26 +39,32 @@ export function ProfileManager() {
       <form onSubmit={handleUpdate}>
         <div>
           <label>Full Name:</label>
-          <input 
+          <input
             type="text"
             value={formData.full_name}
-            onChange={(e) => setFormData({...formData, full_name: e.target.value})}
+            onChange={(e) =>
+              setFormData({ ...formData, full_name: e.target.value })
+            }
           />
         </div>
         <div>
           <label>Phone:</label>
-          <input 
+          <input
             type="text"
             value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            onChange={(e) =>
+              setFormData({ ...formData, phone: e.target.value })
+            }
           />
         </div>
         <div>
           <label>NIM/NIP:</label>
-          <input 
+          <input
             type="text"
             value={formData.nim_nip}
-            onChange={(e) => setFormData({...formData, nim_nip: e.target.value})}
+            onChange={(e) =>
+              setFormData({ ...formData, nim_nip: e.target.value })
+            }
           />
         </div>
         <button type="submit" disabled={loading}>

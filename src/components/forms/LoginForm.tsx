@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -22,7 +22,7 @@ const loginSchema = z.object({
     .min(1, 'Password wajib diisi')
     .min(6, 'Password minimal 6 karakter')
     .max(100, 'Password terlalu panjang'),
-  rememberMe: z.boolean().optional()
+  rememberMe: z.boolean().optional(),
 })
 
 type LoginFormData = z.infer<typeof loginSchema>
@@ -34,11 +34,11 @@ interface LoginFormProps {
   className?: string
 }
 
-export function LoginForm({ 
-  onSuccess, 
-  onForgotPassword, 
+export function LoginForm({
+  onSuccess,
+  onForgotPassword,
   redirectTo = '/dashboard',
-  className = '' 
+  className = '',
 }: LoginFormProps) {
   const { login, loading, error, clearError } = useAuthContext()
   const [showPassword, setShowPassword] = useState(false)
@@ -50,15 +50,15 @@ export function LoginForm({
     formState: { errors, isValid },
     watch,
     setError,
-    clearErrors
+    clearErrors,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     mode: 'onChange',
     defaultValues: {
       email: '',
       password: '',
-      rememberMe: false
-    }
+      rememberMe: false,
+    },
   })
 
   // Watch fields for real-time validation feedback
@@ -71,38 +71,45 @@ export function LoginForm({
       clearError()
       clearErrors()
 
-      console.log('Attempting login with:', { email: data.email, rememberMe: data.rememberMe })
+      console.log('Attempting login with:', {
+        email: data.email,
+        rememberMe: data.rememberMe,
+      })
 
       const result = await login({
         email: data.email,
         password: data.password,
-        remember_me: data.rememberMe
+        remember_me: data.rememberMe,
       })
 
       if (result.success) {
         console.log('Login successful')
         onSuccess?.()
-        
+
         // Redirect after successful login
         if (redirectTo) {
           window.location.href = redirectTo
         }
       } else {
         console.error('Login failed:', result.error)
-        
+
         // Set specific field errors based on error type
         if (result.error?.includes('Invalid login credentials')) {
           setError('email', { message: 'Email atau password salah' })
           setError('password', { message: 'Email atau password salah' })
         } else if (result.error?.includes('Email not confirmed')) {
-          setError('email', { message: 'Email belum dikonfirmasi. Periksa email Anda.' })
+          setError('email', {
+            message: 'Email belum dikonfirmasi. Periksa email Anda.',
+          })
         } else {
           setError('root', { message: result.error || 'Login gagal' })
         }
       }
     } catch (err: any) {
       console.error('Login error:', err)
-      setError('root', { message: err.message || 'Terjadi kesalahan saat login' })
+      setError('root', {
+        message: err.message || 'Terjadi kesalahan saat login',
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -165,29 +172,36 @@ export function LoginForm({
               onClick={() => setShowPassword(!showPassword)}
               disabled={isFormLoading}
             >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
           {errors.password && (
-            <p className="text-sm text-destructive">{errors.password.message}</p>
+            <p className="text-sm text-destructive">
+              {errors.password.message}
+            </p>
           )}
           {/* Password strength indicator */}
           {watchedPassword && !errors.password && (
             <div className="text-xs text-muted-foreground">
-              Password strength: {watchedPassword.length >= 8 ? 'Strong' : 'Weak'}
+              Password strength:{' '}
+              {watchedPassword.length >= 8 ? 'Strong' : 'Weak'}
             </div>
           )}
         </div>
 
         {/* Remember Me */}
         <div className="flex items-center space-x-2">
-          <Checkbox 
-            id="rememberMe" 
+          <Checkbox
+            id="rememberMe"
             disabled={isFormLoading}
             {...register('rememberMe')}
           />
-          <Label 
-            htmlFor="rememberMe" 
+          <Label
+            htmlFor="rememberMe"
             className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
           >
             Remember me for 30 days
@@ -197,16 +211,14 @@ export function LoginForm({
         {/* Error Display */}
         {(error || errors.root) && (
           <Alert variant="destructive">
-            <AlertDescription>
-              {error || errors.root?.message}
-            </AlertDescription>
+            <AlertDescription>{error || errors.root?.message}</AlertDescription>
           </Alert>
         )}
 
         {/* Submit Button */}
-        <Button 
-          type="submit" 
-          className="w-full" 
+        <Button
+          type="submit"
+          className="w-full"
           disabled={isFormLoading || !isValid}
         >
           {isFormLoading ? (

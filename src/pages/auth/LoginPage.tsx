@@ -1,8 +1,13 @@
-import React from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthContext } from '../../context/AuthContext'
 import { LoginForm } from '../../components/forms/LoginForm'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../components/ui/card'
 
 export function LoginPage() {
   const { isAuthenticated, loading } = useAuthContext()
@@ -31,9 +36,7 @@ export function LoginPage() {
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             Sistem Praktikum AKBID
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Masuk ke akun Anda
-          </p>
+          <p className="mt-2 text-sm text-gray-600">Masuk ke akun Anda</p>
         </div>
 
         {/* Login Form Card */}
@@ -45,7 +48,7 @@ export function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <LoginForm 
+            <LoginForm
               onSuccess={handleLoginSuccess}
               onForgotPassword={handleForgotPassword}
             />
@@ -56,7 +59,10 @@ export function LoginPage() {
         <div className="text-center text-sm">
           <p className="text-gray-600">
             Don't have an account?{' '}
-            <a href="/register" className="font-medium text-primary hover:underline">
+            <a
+              href="/register"
+              className="font-medium text-primary hover:underline"
+            >
               Sign up here
             </a>
           </p>

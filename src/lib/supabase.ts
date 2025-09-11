@@ -269,7 +269,7 @@ export const supabaseHelpers = {
 
       if (error) {
         console.warn('Direct profile fetch failed:', error.message)
-        
+
         // Method 2: Try with auth.users fallback
         const { data: authUser } = await supabase.auth.getUser()
         if (authUser.user && authUser.user.id === userId) {
@@ -285,10 +285,10 @@ export const supabaseHelpers = {
             is_active: true,
             email_verified: authUser.user.email_confirmed_at ? true : false,
             created_at: authUser.user.created_at || new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           }
         }
-        
+
         throw error
       }
 
@@ -300,14 +300,17 @@ export const supabaseHelpers = {
   },
 
   // Enhanced updateUserProfile with auth metadata sync
-  async updateUserProfile(userId: string, updates: UserProfileUpdate): Promise<UserProfile | null> {
+  async updateUserProfile(
+    userId: string,
+    updates: UserProfileUpdate
+  ): Promise<UserProfile | null> {
     try {
       // Update database profile
       const { data: dbUpdate, error: dbError } = await supabase
         .from('users_profile')
         .update({
           ...updates,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .eq('id', userId)
         .select()
@@ -323,13 +326,16 @@ export const supabaseHelpers = {
 
       if (Object.keys(authUpdates).length > 0) {
         await supabase.auth.updateUser({
-          data: authUpdates
+          data: authUpdates,
         })
       }
 
       if (dbError) {
         // If database update fails, still return success if auth update worked
-        console.warn('Database profile update failed, using auth fallback:', dbError)
+        console.warn(
+          'Database profile update failed, using auth fallback:',
+          dbError
+        )
         return {
           id: userId,
           email: '', // Will be filled by caller if needed
@@ -341,7 +347,7 @@ export const supabaseHelpers = {
           is_active: updates.is_active,
           email_verified: updates.email_verified,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         }
       }
 
@@ -353,7 +359,9 @@ export const supabaseHelpers = {
   },
 
   // Enhanced createUserProfile with role assignment
-  async createUserProfile(profileData: CreateProfileData): Promise<UserProfile> {
+  async createUserProfile(
+    profileData: CreateProfileData
+  ): Promise<UserProfile> {
     try {
       const profileInsert: UserProfileInsert = {
         id: profileData.id,
@@ -366,7 +374,7 @@ export const supabaseHelpers = {
         is_active: true,
         email_verified: false,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }
 
       const { data, error } = await supabase
@@ -576,13 +584,13 @@ export const supabaseHelpers = {
 }
 
 // Export types for TypeScript
-export type { 
-  User, 
-  Session, 
-  UserProfile, 
-  UserProfileInsert, 
-  UserProfileUpdate, 
+export type {
+  User,
+  Session,
+  UserProfile,
+  UserProfileInsert,
+  UserProfileUpdate,
   CreateProfileData,
   Permission,
-  Role 
+  Role,
 }

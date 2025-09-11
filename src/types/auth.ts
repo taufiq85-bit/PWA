@@ -156,35 +156,35 @@ export interface AuthActions {
   login: (credentials: LoginCredentials) => Promise<AuthResult>
   register: (data: RegisterData) => Promise<AuthResult>
   logout: () => Promise<void>
-  
+
   // Password management
   resetPassword: (email: string) => Promise<AuthResult>
-updatePassword: (newPassword: string) => Promise<AuthResult>
-  
+  updatePassword: (newPassword: string) => Promise<AuthResult>
+
   // Profile management
   updateProfile: (data: UserProfileUpdate) => Promise<AuthResult>
   fetchProfile: (userId: string) => Promise<void>
   uploadAvatar: (file: File) => Promise<AuthResult> // Avatar upload
-  
+
   // Session management
   refreshSession: () => Promise<void>
   checkSession: () => Promise<boolean>
   extendSession: () => Promise<void> // Extend session
-  
+
   // Role management
   switchRole: (roleCode: string) => void
   fetchUserRoles: (userId: string) => Promise<void>
   fetchUserPermissions: (roleIds: string[]) => Promise<void>
-  
+
   // Permission helpers
   hasPermission: (permission: string, module?: string) => boolean
   hasRole: (roleCode: string) => boolean
   canAccess: (resource: string, action: PermissionAction) => boolean
-  
+
   // Activity tracking
   updateLastActivity: () => void
   trackLogin: (deviceInfo?: string) => Promise<void>
-  
+
   // Error handling
   clearError: () => void
 }
@@ -194,11 +194,30 @@ export type AuthContextType = AuthState & AuthActions
 
 // Additional utility types
 export type RoleCode = 'ADMIN' | 'DOSEN' | 'MAHASISWA' | 'LABORAN'
-export type PermissionAction = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'MANAGE' | 'EXPORT' | 'IMPORT'
-export type PermissionModule = 'USER' | 'ROLE' | 'LABORATORY' | 'EQUIPMENT' | 'RESERVATION' | 'REPORT' | 'DASHBOARD' | 'SETTINGS'
+export type PermissionAction =
+  | 'CREATE'
+  | 'READ'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'MANAGE'
+  | 'EXPORT'
+  | 'IMPORT'
+export type PermissionModule =
+  | 'USER'
+  | 'ROLE'
+  | 'LABORATORY'
+  | 'EQUIPMENT'
+  | 'RESERVATION'
+  | 'REPORT'
+  | 'DASHBOARD'
+  | 'SETTINGS'
 
 // New utility types
-export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error'
+export type AuthStatus =
+  | 'loading'
+  | 'authenticated'
+  | 'unauthenticated'
+  | 'error'
 export type UserStatus = 'active' | 'inactive' | 'suspended' | 'pending'
 export type SessionStatus = 'active' | 'expired' | 'refreshing'
 
@@ -219,17 +238,23 @@ export interface Database {
       permissions: {
         Row: UserPermission
         Insert: Omit<UserPermission, 'created_at' | 'updated_at'>
-        Update: Partial<Omit<UserPermission, 'id' | 'created_at' | 'updated_at'>>
+        Update: Partial<
+          Omit<UserPermission, 'id' | 'created_at' | 'updated_at'>
+        >
       }
       user_roles: {
         Row: UserRoleAssignment
         Insert: Omit<UserRoleAssignment, 'id' | 'assigned_at'>
-        Update: Partial<Omit<UserRoleAssignment, 'id' | 'user_id' | 'role_id' | 'assigned_at'>>
+        Update: Partial<
+          Omit<UserRoleAssignment, 'id' | 'user_id' | 'role_id' | 'assigned_at'>
+        >
       }
       role_permissions: {
         Row: RolePermission
         Insert: Omit<RolePermission, 'id' | 'created_at' | 'updated_at'>
-        Update: Partial<Omit<RolePermission, 'id' | 'created_at' | 'updated_at'>>
+        Update: Partial<
+          Omit<RolePermission, 'id' | 'created_at' | 'updated_at'>
+        >
       }
     }
   }
@@ -255,7 +280,9 @@ export const isUserRole = (obj: any): obj is UserRole => {
 }
 
 export const isUserPermission = (obj: any): obj is UserPermission => {
-  return obj && typeof obj.id === 'string' && typeof obj.permission_code === 'string'
+  return (
+    obj && typeof obj.id === 'string' && typeof obj.permission_code === 'string'
+  )
 }
 
 // Additional helper functions

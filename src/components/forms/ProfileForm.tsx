@@ -26,28 +26,28 @@ interface ProfileFormProps {
 }
 
 // EXPORT FUNCTION YANG BENAR
-export function ProfileForm({ 
-  defaultValues, 
-  onSubmit, 
-  onCancel, 
-  isLoading 
+export function ProfileForm({
+  defaultValues,
+  onSubmit,
+  onCancel,
+  isLoading,
 }: ProfileFormProps) {
   const [submitError, setSubmitError] = useState<string>('')
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting }
+    formState: { errors, isSubmitting },
   } = useForm<ProfileData>({
     resolver: zodResolver(profileSchema),
-    defaultValues
+    defaultValues,
   })
 
   const handleFormSubmit = async (data: ProfileData) => {
     try {
       setSubmitError('')
       const result = await onSubmit(data)
-      
+
       if (!result.success && result.error) {
         setSubmitError(result.error)
       }

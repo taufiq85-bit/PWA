@@ -117,10 +117,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await loadUserData(session.user)
         // Set session expiry
         if (session.expires_at) {
-          dispatch({ type: 'SET_SESSION_EXPIRY', payload: session.expires_at * 1000 })
+          dispatch({
+            type: 'SET_SESSION_EXPIRY',
+            payload: session.expires_at * 1000,
+          })
         }
       } else if (event === 'SIGNED_OUT') {
         dispatch({ type: 'RESET_AUTH' })
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        await loadUserData(session.user)
+      } else if (event === 'USER_UPDATED' && session?.user) {
+        // Handle email verification completion
+        if (session.user.email_confirmed_at) {
+          console.log('Email verified successfully')
+          await loadUserData(session.user)
+        }
+      } else if (event === 'PASSWORD_RECOVERY' && session?.user) {
+        // Handle password recovery flow
+        console.log('Password recovery initiated')
+        await loadUserData(session.user)
       }
     })
 
@@ -137,12 +152,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Update activity on various user interactions
     const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
-    events.forEach(event => {
+    events.forEach((event) => {
       window.addEventListener(event, updateActivity, { passive: true })
     })
 
     return () => {
-      events.forEach(event => {
+      events.forEach((event) => {
         window.removeEventListener(event, updateActivity)
       })
     }
@@ -160,7 +175,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         await loadUserData(session.user)
         if (session.expires_at) {
-          dispatch({ type: 'SET_SESSION_EXPIRY', payload: session.expires_at * 1000 })
+          dispatch({
+            type: 'SET_SESSION_EXPIRY',
+            payload: session.expires_at * 1000,
+          })
         }
       } else {
         dispatch({ type: 'SET_USER', payload: null })
@@ -180,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Load profile with enhanced error handling
       let profile = await supabaseHelpers.getUserProfile(user.id)
-      
+
       // If profile doesn't exist, try to create it from auth metadata
       if (!profile && user.email) {
         try {
@@ -188,11 +206,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           profile = await supabaseHelpers.createUserProfile({
             id: user.id,
             email: user.email,
-            full_name: user.user_metadata?.full_name || user.email.split('@')[0],
+            full_name:
+              user.user_metadata?.full_name || user.email.split('@')[0],
             username: user.user_metadata?.username,
-            nim_nip: user.user_metadata?.nim_nip || user.user_metadata?.nim || user.user_metadata?.nip,
+            nim_nip:
+              user.user_metadata?.nim_nip ||
+              user.user_metadata?.nim ||
+              user.user_metadata?.nip,
             phone: user.user_metadata?.phone,
-            role_default: user.user_metadata?.role || 'MAHASISWA'
+            role_default: user.user_metadata?.role || 'MAHASISWA',
           })
         } catch (createError) {
           console.warn('Failed to create profile automatically:', createError)
@@ -200,16 +222,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           profile = {
             id: user.id,
             email: user.email,
-            full_name: user.user_metadata?.full_name || user.email.split('@')[0],
+            full_name:
+              user.user_metadata?.full_name || user.email.split('@')[0],
             username: user.user_metadata?.username || '',
-            nim_nip: user.user_metadata?.nim_nip || user.user_metadata?.nim || user.user_metadata?.nip || '',
+            nim_nip:
+              user.user_metadata?.nim_nip ||
+              user.user_metadata?.nim ||
+              user.user_metadata?.nip ||
+              '',
             phone: user.user_metadata?.phone || '',
             avatar_url: user.user_metadata?.avatar_url || '',
             role_default: user.user_metadata?.role || 'MAHASISWA',
             is_active: true,
             email_verified: user.email_confirmed_at ? true : false,
             created_at: user.created_at,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           }
         }
       }
@@ -224,16 +251,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Load permissions
       const permissionsData = await supabaseHelpers.getUserPermissions(user.id)
-      const permissions: UserPermission[] = permissionsData.map((perm: any) => ({
-        id: perm.id,
-        permission_code: perm.permission_code,
-        permission_name: perm.permission_name,
-        module: perm.module,
-        action: perm.action,
-        description: perm.description,
-        created_at: perm.created_at || new Date().toISOString(),
-        updated_at: perm.updated_at,
-      }))
+      const permissions: UserPermission[] = permissionsData.map(
+        (perm: any) => ({
+          id: perm.id,
+          permission_code: perm.permission_code,
+          permission_name: perm.permission_name,
+          module: perm.module,
+          action: perm.action,
+          description: perm.description,
+          created_at: perm.created_at || new Date().toISOString(),
+          updated_at: perm.updated_at,
+        })
+      )
       dispatch({ type: 'SET_PERMISSIONS', payload: permissions })
 
       // Set current role
@@ -288,7 +317,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const authMetadata: Record<string, any> = {
         full_name: data.fullName,
       }
-      
+
       if (data.phone) authMetadata.phone = data.phone
       if (data.nim) authMetadata.nim = data.nim
       if (data.nip) authMetadata.nip = data.nip
@@ -299,8 +328,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email,
         password: data.password,
         options: {
-          data: authMetadata
-        }
+          data: authMetadata,
+        },
       })
 
       if (authError) {
@@ -322,18 +351,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           username: data.username,
           phone: data.phone,
           nim_nip: data.nim || data.nip,
-          role_default: data.role || 'MAHASISWA'
+          role_default: data.role || 'MAHASISWA',
         })
-        
+
         console.log('✅ Profile created successfully during registration')
       } catch (profileError) {
-        console.warn('⚠️ Profile creation failed during registration, will retry on login:', profileError)
+        console.warn(
+          '⚠️ Profile creation failed during registration, will retry on login:',
+          profileError
+        )
         // Don't fail registration if profile creation fails
         // The profile will be created automatically on first login
       }
 
-      return { 
-        success: true
+      return {
+        success: true,
       }
     } catch (error: any) {
       const errorMessage = error.message || 'Terjadi kesalahan saat registrasi'
@@ -352,49 +384,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Enhanced resetPassword method with better error handling
   const resetPassword = async (email: string): Promise<AuthResult> => {
     try {
+      dispatch({ type: 'SET_LOADING', payload: true })
+      dispatch({ type: 'CLEAR_ERROR' })
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       })
 
       if (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message })
         return { success: false, error: error.message }
       }
 
-      return { success: true }
+      return {
+        success: true,
+        data: { message: 'Link reset password telah dikirim ke email Anda' },
+      }
     } catch (error: any) {
-      return { success: false, error: error.message || 'Gagal reset password' }
+      const errorMessage =
+        error.message || 'Gagal mengirim email reset password'
+      dispatch({ type: 'SET_ERROR', payload: errorMessage })
+      return { success: false, error: errorMessage }
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false })
     }
   }
 
   const updatePassword = async (newPassword: string): Promise<AuthResult> => {
     try {
+      dispatch({ type: 'SET_LOADING', payload: true })
+      dispatch({ type: 'CLEAR_ERROR' })
+
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       })
 
       if (error) {
+        dispatch({ type: 'SET_ERROR', payload: error.message })
         return { success: false, error: error.message }
       }
 
-      return { success: true }
+      return {
+        success: true,
+        data: { message: 'Password berhasil diubah' },
+      }
     } catch (error: any) {
-      return { success: false, error: error.message || 'Gagal update password' }
+      const errorMessage = error.message || 'Gagal mengubah password'
+      dispatch({ type: 'SET_ERROR', payload: errorMessage })
+      return { success: false, error: errorMessage }
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false })
     }
   }
 
-  const updateProfile = async (updates: UserProfileUpdate): Promise<AuthResult> => {
+  const updateProfile = async (
+    updates: UserProfileUpdate
+  ): Promise<AuthResult> => {
     try {
       if (!state.user) {
         return { success: false, error: 'User tidak ditemukan' }
       }
 
-      const updatedProfile = await supabaseHelpers.updateUserProfile(state.user.id, updates)
+      const updatedProfile = await supabaseHelpers.updateUserProfile(
+        state.user.id,
+        updates
+      )
       if (updatedProfile) {
         dispatch({ type: 'SET_PROFILE', payload: updatedProfile })
       }
-      
+
       // Reload user data to ensure consistency
       await loadUserData(state.user)
 
@@ -422,9 +483,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: uploadError.message }
       }
 
-      const { data } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath)
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
 
       await updateProfile({ avatar_url: data.publicUrl })
 
@@ -441,7 +500,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (data.user && data.session?.expires_at) {
         await loadUserData(data.user)
-        dispatch({ type: 'SET_SESSION_EXPIRY', payload: data.session.expires_at * 1000 })
+        dispatch({
+          type: 'SET_SESSION_EXPIRY',
+          payload: data.session.expires_at * 1000,
+        })
       }
     } catch (error) {
       console.error('Refresh session error:', error)
@@ -466,7 +528,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Permission helpers
   const hasPermission = (permission: string, module?: string): boolean => {
-    return state.permissions.some(perm => {
+    return state.permissions.some((perm) => {
       const hasPermCode = perm.permission_code === permission
       const hasModule = module ? perm.module === module : true
       return hasPermCode && hasModule
@@ -474,13 +536,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const hasRole = (roleCode: string): boolean => {
-    return state.roles.some(role => role.role_code === roleCode && role.is_active)
+    return state.roles.some(
+      (role) => role.role_code === roleCode && role.is_active
+    )
   }
 
   const canAccess = (resource: string, action: PermissionAction): boolean => {
-    return state.permissions.some(perm => 
-      perm.module.toLowerCase() === resource.toLowerCase() && 
-      perm.action === action
+    return state.permissions.some(
+      (perm) =>
+        perm.module.toLowerCase() === resource.toLowerCase() &&
+        perm.action === action
     )
   }
 
@@ -494,11 +559,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (deviceInfo) {
         dispatch({ type: 'SET_DEVICE_INFO', payload: deviceInfo })
       }
-      
+
       // Update last login in profile
       if (state.user) {
-        await updateProfile({ 
-          last_login: new Date().toISOString() 
+        await updateProfile({
+          last_login: new Date().toISOString(),
         })
       }
     } catch (error) {
@@ -514,30 +579,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchProfile = async (userId: string): Promise<void> => {
     try {
       let profile = await supabaseHelpers.getUserProfile(userId)
-      
+
       // If profile doesn't exist and we have a current user, try to create it
-      if (!profile && state.user && state.user.id === userId && state.user.email) {
+      if (
+        !profile &&
+        state.user &&
+        state.user.id === userId &&
+        state.user.email
+      ) {
         try {
           profile = await supabaseHelpers.createUserProfile({
             id: userId,
             email: state.user.email,
-            full_name: state.user.user_metadata?.full_name || state.user.email.split('@')[0],
+            full_name:
+              state.user.user_metadata?.full_name ||
+              state.user.email.split('@')[0],
             username: state.user.user_metadata?.username,
-            nim_nip: state.user.user_metadata?.nim_nip || state.user.user_metadata?.nim || state.user.user_metadata?.nip,
+            nim_nip:
+              state.user.user_metadata?.nim_nip ||
+              state.user.user_metadata?.nim ||
+              state.user.user_metadata?.nip,
             phone: state.user.user_metadata?.phone,
-            role_default: state.user.user_metadata?.role || 'MAHASISWA'
+            role_default: state.user.user_metadata?.role || 'MAHASISWA',
           })
         } catch (createError) {
           console.warn('Failed to create profile in fetchProfile:', createError)
         }
       }
-      
+
       if (profile) {
         dispatch({ type: 'SET_PROFILE', payload: profile })
       }
     } catch (error: any) {
       console.error('Fetch profile error:', error)
-      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memuat profile' })
+      dispatch({
+        type: 'SET_ERROR',
+        payload: error.message || 'Gagal memuat profile',
+      })
     }
   }
 
@@ -566,7 +644,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Update session expiry
       if (session.expires_at) {
-        dispatch({ type: 'SET_SESSION_EXPIRY', payload: session.expires_at * 1000 })
+        dispatch({
+          type: 'SET_SESSION_EXPIRY',
+          payload: session.expires_at * 1000,
+        })
       }
 
       // Optionally refresh user data if session is valid
@@ -577,7 +658,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return true
     } catch (error: any) {
       console.error('Check session error:', error)
-      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memeriksa session' })
+      dispatch({
+        type: 'SET_ERROR',
+        payload: error.message || 'Gagal memeriksa session',
+      })
       return false
     }
   }
@@ -595,7 +679,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'SET_CURRENT_ROLE', payload: currentRole })
     } catch (error: any) {
       console.error('Fetch user roles error:', error)
-      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memuat roles' })
+      dispatch({
+        type: 'SET_ERROR',
+        payload: error.message || 'Gagal memuat roles',
+      })
     }
   }
 
@@ -607,23 +694,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Use the existing getUserPermissions method
-      const permissionsData = await supabaseHelpers.getUserPermissions(state.user.id)
+      const permissionsData = await supabaseHelpers.getUserPermissions(
+        state.user.id
+      )
 
-      const permissions: UserPermission[] = permissionsData.map((perm: any) => ({
-        id: perm.id,
-        permission_code: perm.permission_code,
-        permission_name: perm.permission_name,
-        module: perm.module,
-        action: perm.action,
-        description: perm.description,
-        created_at: perm.created_at || new Date().toISOString(),
-        updated_at: perm.updated_at,
-      }))
-      
+      const permissions: UserPermission[] = permissionsData.map(
+        (perm: any) => ({
+          id: perm.id,
+          permission_code: perm.permission_code,
+          permission_name: perm.permission_name,
+          module: perm.module,
+          action: perm.action,
+          description: perm.description,
+          created_at: perm.created_at || new Date().toISOString(),
+          updated_at: perm.updated_at,
+        })
+      )
+
       dispatch({ type: 'SET_PERMISSIONS', payload: permissions })
     } catch (error: any) {
       console.error('Fetch user permissions error:', error)
-      dispatch({ type: 'SET_ERROR', payload: error.message || 'Gagal memuat permissions' })
+      dispatch({
+        type: 'SET_ERROR',
+        payload: error.message || 'Gagal memuat permissions',
+      })
     }
   }
 
