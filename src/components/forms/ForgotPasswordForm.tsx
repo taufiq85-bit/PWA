@@ -95,12 +95,18 @@ export function ForgotPasswordForm({
           })
         }
       }
-    } catch (err: any) {
-      console.error('Password reset error:', err)
-      setError('root', {
-        message: err.message || 'Terjadi kesalahan saat mengirim email reset',
-      })
-    } finally {
+    } catch (err: unknown) {
+  console.error('Password reset error:', err)
+  const errorMessage = err instanceof Error 
+    ? err.message 
+    : typeof err === 'string' 
+      ? err 
+      : 'Terjadi kesalahan saat mengirim email reset'
+  
+  setError('root', {
+    message: errorMessage,
+  })
+} finally {
       setIsSubmitting(false)
     }
   }

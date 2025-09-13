@@ -1,5 +1,5 @@
-// src/context/index.ts
-export { ThemeProvider, useTheme } from './ThemeContext'
-export { NotificationProvider, useNotification } from './NotificationContext'
-export { OfflineProvider, useOffline } from './OfflineContext'
-export type { NotificationType, Notification } from './NotificationContext'
+export { AuthProvider, useAuthContext } from './AuthContext'
+export { ThemeProvider } from './ThemeContext'
+export { NotificationProvider } from './NotificationContext'
+export { OfflineProvider } from './OfflineContext'
+export { SessionProvider, useSession } from './SessionContext'

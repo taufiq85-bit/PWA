@@ -1,0 +1,7 @@
+export { default as AppRouter } from './AppRouter'
+export { PublicRoutes } from './PublicRoutes'
+export { PrivateRoutes } from './PrivateRoutes'
+export { AdminRoutes } from './AdminRoutes'
+export { DosenRoutes } from './DosenRoutes'
+export { MahasiswaRoutes } from './MahasiswaRoutes'
+export { LaboranRoutes } from './LaboranRoutes'

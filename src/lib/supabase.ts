@@ -1,4 +1,4 @@
-// src/lib/supabase.ts - Enhanced with robust profile management
+// src/lib/database.ts - Complete file with fixed testRLS function
 import { createClient, User, Session } from '@supabase/supabase-js'
 
 // Environment variables validation
@@ -95,7 +95,7 @@ export const testSupabaseConnection = async (): Promise<boolean> => {
       if (!rbacError) {
         console.log('✅ RBAC tables accessible')
       }
-    } catch (_rbacError) {
+     } catch {
       console.log('⚠️ RBAC tables not yet created (expected in development)')
     }
 
@@ -581,6 +581,41 @@ export const supabaseHelpers = {
     }
     return data || []
   },
+
+  // Fixed testRLS function - remove unused variable
+    testRLS: async (tableName: string) => {
+      try {
+        // Test without authentication
+        const { error: publicError } = await supabase
+          .from(tableName)
+          .select('*')
+          .limit(1)
+
+      // Test with authentication
+      const { data: { user } } = await supabase.auth.getUser()
+      let authError = null
+
+      if (user) {
+        const { error } = await supabase
+          .from(tableName)
+          .select('*')
+          .limit(1)
+        authError = error
+      }
+
+      return {
+        tableName,
+        publicAccess: { allowed: !publicError, error: publicError?.message },
+        authenticatedAccess: { allowed: !authError, error: authError?.message },
+        hasUser: !!user
+      }
+    } catch (error) {
+      return { 
+        tableName, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      }
+    }
+  }
 }
 
 // Export types for TypeScript

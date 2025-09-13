@@ -198,17 +198,16 @@ export function RegisterForm({
       })
 
       const result = await registerUser({
-        email: data.email,
-        password: data.password,
-        confirmPassword: data.confirmPassword,
-        fullName: data.fullName,
-        phone: data.phone,
-        role: data.role,
-        nim: data.nim,
-        nip: data.nip,
-      })
+  email: data.email,
+  password: data.password,
+  confirm_password: data.confirmPassword,
+  full_name: data.fullName,
+  phone: data.phone,
+  role_code: data.role,
+  nim_nip: watchedRole === 'MAHASISWA' ? data.nim : data.nip
+})
 
-      if (result.success) {
+if (result?.success) {
         console.log('Registration successful')
         setRegistrationSuccess(true)
         setEmailSent(data.email)
@@ -217,19 +216,17 @@ export function RegisterForm({
         console.error('Registration failed:', result.error)
 
         // Set specific field errors based on error type
-        if (result.error?.includes('Email already registered')) {
-          setError('email', {
-            message:
-              'Email sudah terdaftar. Silakan login atau gunakan email lain.',
-          })
-        } else if (result.error?.includes('weak password')) {
-          setError('password', {
-            message:
-              'Password terlalu lemah. Gunakan kombinasi huruf besar, kecil, dan angka.',
-          })
-        } else {
-          setError('root', { message: result.error || 'Registrasi gagal' })
-        }
+        if (result?.error?.includes('Email already registered')) {
+  setError('email', {
+    message: 'Email sudah terdaftar. Silakan login atau gunakan email lain.',
+  })
+} else if (result?.error?.includes('weak password')) {
+  setError('password', {
+    message: 'Password terlalu lemah. Gunakan kombinasi huruf besar, kecil, dan angka.',
+  })
+} else {
+  setError('root', { message: result?.error || 'Registrasi gagal' })
+}
       }
     } catch (err: any) {
       console.error('Registration error:', err)

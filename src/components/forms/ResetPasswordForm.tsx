@@ -94,7 +94,7 @@ export function ResetPasswordForm({
         // Validate token with Supabase
         // In a real implementation, you might want to verify the token
         setTokenValid(true)
-      } catch (err) {
+      } catch {
         setTokenValid(false)
         onError?.('Token reset password tidak valid atau sudah kedaluwarsa')
       }

@@ -1,4 +1,4 @@
-import { ForgotPasswordForm } from '../../components/forms/ForgotPasswordForm'
+import { ForgotPasswordForm } from '../components/forms/ForgotPasswordForm'
 
 export function ForgotPasswordPage() {
   const handleSuccess = (email: string) => {

@@ -1,14 +1,14 @@
 import React from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuthContext } from '../../context/AuthContext'
-import { RegisterForm } from '../../components/forms/RegisterForm'
+import { useAuthContext } from '../context/AuthContext'
+import { RegisterForm } from '../components/forms/RegisterForm'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '../../components/ui/card'
+} from '../components/ui/card'
 
 export function RegisterPage() {
   const { isAuthenticated, loading } = useAuthContext()

@@ -1,19 +1,21 @@
 // src/types/user.ts - CORRECTED to match database schema
 export interface UserProfile {
   id: string
-  username?: string
-  full_name: string // ✅ Changed from 'name' to 'full_name'
-  email: string
-  nim_nip?: string // ✅ Changed from 'nim' to 'nim_nip'
-  phone?: string
+  user_id: string
+  nim_nip?: string
+  role_id: string
+  laboratory_id?: string
+  department?: string
   address?: string
   birth_date?: string
-  avatar_url?: string
-  role_default?: string
-  is_active: boolean
-  email_verified: boolean
+  gender?: 'L' | 'P'
   created_at: string
   updated_at: string
+}
+
+// Add role relationship
+export interface UserWithRole extends UserProfile {
+  role: Role
 }
 
 // ✅ Complete Role definition sesuai database schema

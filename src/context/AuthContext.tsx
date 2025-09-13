@@ -315,13 +315,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Prepare auth metadata
       const authMetadata: Record<string, any> = {
-        full_name: data.fullName,
+        full_name: data.full_name,
       }
 
       if (data.phone) authMetadata.phone = data.phone
-      if (data.nim) authMetadata.nim = data.nim
-      if (data.nip) authMetadata.nip = data.nip
-      if (data.role) authMetadata.role = data.role
+      if (data.nim_nip) authMetadata.nim_nip = data.nim_nip
+if (data.role_code) authMetadata.role = data.role_code
       if (data.username) authMetadata.username = data.username
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -347,11 +346,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabaseHelpers.createUserProfile({
           id: authData.user.id,
           email: authData.user.email!,
-          full_name: data.fullName,
+          full_name: data.full_name,
           username: data.username,
           phone: data.phone,
-          nim_nip: data.nim || data.nip,
-          role_default: data.role || 'MAHASISWA',
+          nim_nip: data.nim_nip,
+role_default: data.role_code || 'MAHASISWA',
         })
 
         console.log('✅ Profile created successfully during registration')

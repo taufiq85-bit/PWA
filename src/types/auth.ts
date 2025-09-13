@@ -6,7 +6,7 @@ export interface UserProfile {
   email: string
   name?: string
   nim_nip?: string
-  full_name: string // FIXED: Changed from ReactNode | string to string only
+  full_name: string
   phone?: string
   avatar_url?: string
   created_at: string
@@ -21,7 +21,7 @@ export interface UserRole {
   description?: string
   is_active: boolean
   created_at: string
-  updated_at?: string // Made optional to match database schema
+  updated_at?: string
 }
 
 // Permission type with all required fields
@@ -33,7 +33,7 @@ export interface UserPermission {
   action: string
   description?: string
   created_at: string
-  updated_at?: string // Made optional to match database schema
+  updated_at?: string
 }
 
 // Role-Permission junction type for database queries
@@ -42,7 +42,7 @@ export interface RolePermission {
   role_id: string
   permission_id: string
   created_at: string
-  updated_at?: string // Made optional to match database schema
+  updated_at?: string
   permissions: UserPermission
 }
 
@@ -53,8 +53,8 @@ export interface UserRoleAssignment {
   role_id: string
   is_active: boolean
   assigned_at: string
-  assigned_by?: string // Who assigned this role
-  expires_at?: string // Role expiration date
+  assigned_by?: string
+  expires_at?: string
   roles: UserRole
 }
 
@@ -65,9 +65,9 @@ export interface UserProfileUpdate {
   avatar_url?: string
   nim_nip?: string
   name?: string
-  is_active?: boolean // Add user status
-  last_login?: string // Track last login
-  department?: string // User department/faculty
+  is_active?: boolean
+  last_login?: string
+  department?: string
 }
 
 // Simple error type
@@ -80,21 +80,20 @@ export interface LoginCredentials {
   remember_me?: boolean
 }
 
-// FIXED: Updated RegisterData to match your database schema
+// FIXED: Updated RegisterData to match your database schema and request
 export interface RegisterData {
   username?: string
   email: string
   password: string
-  confirmPassword: string // Added for password confirmation
-  fullName: string // Changed from username to fullName
+  confirm_password: string // FIXED: Changed from confirmPassword
+  full_name: string       // FIXED: Changed from fullName
   phone?: string
-  role?: 'ADMIN' | 'DOSEN' | 'MAHASISWA' | 'LABORAN' // Updated to match role codes
-  nim?: string // Changed from nim_nip to nim for students
-  nip?: string // Added NIP for staff/faculty
+  role_code?: 'ADMIN' | 'DOSEN' | 'MAHASISWA' | 'LABORAN' // FIXED: Changed from role to role_code
+  nim_nip?: string        // FIXED: Combined nim and nip
   laboratory_id?: string
-  department?: string // User department
-  academic_year?: string // Academic year for students
-  batch?: string // Student batch/angkatan
+  department?: string
+  academic_year?: string
+  batch?: string
 }
 
 // User registration input type (for forms)
@@ -102,12 +101,11 @@ export interface UserRegistrationInput {
   name: any
   email: string
   password: string
-  confirmPassword: string
-  fullName: string
+  confirm_password: string // FIXED: Changed from confirmPassword
+  full_name: string       // FIXED: Changed from fullName
   phone?: string
-  nim?: string
-  nip?: string
-  role?: string
+  nim_nip?: string        // FIXED: Combined nim and nip
+  role_code?: string      // FIXED: Changed from role to role_code
 }
 
 // Core auth state - SIMPLIFIED and FIXED
@@ -121,16 +119,16 @@ export interface AuthState {
   loading: boolean
   initialized: boolean
   error: AuthError
-  sessionExpiry: number | null // Track session expiration
-  lastActivity: number | null // Track user activity
-  deviceInfo?: string // Track device/browser info
+  sessionExpiry: number | null
+  lastActivity: number | null
+  deviceInfo?: string
 }
 
 // Auth operations return type
 export interface AuthResult {
   success: boolean
   error?: string
-  data?: any // Optional data field for successful operations
+  data?: any
 }
 
 // Password reset types
@@ -164,12 +162,12 @@ export interface AuthActions {
   // Profile management
   updateProfile: (data: UserProfileUpdate) => Promise<AuthResult>
   fetchProfile: (userId: string) => Promise<void>
-  uploadAvatar: (file: File) => Promise<AuthResult> // Avatar upload
+  uploadAvatar: (file: File) => Promise<AuthResult>
 
   // Session management
   refreshSession: () => Promise<void>
   checkSession: () => Promise<boolean>
-  extendSession: () => Promise<void> // Extend session
+  extendSession: () => Promise<void>
 
   // Role management
   switchRole: (roleCode: string) => void

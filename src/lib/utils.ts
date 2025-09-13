@@ -7,6 +7,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Simple unique ID generator
+export function generateId(prefix: string = 'id'): string {
+  try {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return `${prefix}-${(crypto as any).randomUUID()}`
+    }
+  } catch {
+    // ignore crypto errors
+  }
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 // String utilities
 export const stringUtils = {
   // Capitalize first letter
@@ -364,47 +376,403 @@ export const urlUtils = {
   },
 }
 
-// Local storage utilities with error handling
+// In-memory storage for bug tracking (localStorage alternative)
+let bugReportsCache: any[] = []
+let systemMetricsCache: any = {}
+
+// Storage utilities with in-memory fallback
 export const storageUtils = {
-  // Get item from localStorage
+  // Get item from storage (tries localStorage first, falls back to memory)
   get: <T>(key: string, defaultValue?: T): T | null => {
     try {
-      const item = localStorage.getItem(key)
-      return item ? JSON.parse(item) : defaultValue || null
+      if (typeof localStorage !== 'undefined') {
+        const item = localStorage.getItem(key)
+        return item ? JSON.parse(item) : defaultValue || null
+      }
     } catch {
-      return defaultValue || null
+      // Fallback to in-memory storage
+      if (key === 'bug-reports') return bugReportsCache as any
+      if (key === 'system-metrics') return systemMetricsCache as any
     }
+    return defaultValue || null
   },
 
-  // Set item in localStorage
+  // Set item in storage (tries localStorage first, falls back to memory)
   set: (key: string, value: any): boolean => {
     try {
-      localStorage.setItem(key, JSON.stringify(value))
-      return true
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(value))
+        return true
+      }
     } catch {
-      return false
+      // Fallback to in-memory storage
+      if (key === 'bug-reports') bugReportsCache = value
+      if (key === 'system-metrics') systemMetricsCache = value
+      return true
     }
+    return false
   },
 
-  // Remove item from localStorage
+  // Remove item from storage
   remove: (key: string): boolean => {
     try {
-      localStorage.removeItem(key)
-      return true
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(key)
+        return true
+      }
     } catch {
-      return false
+      // Fallback to in-memory storage
+      if (key === 'bug-reports') bugReportsCache = []
+      if (key === 'system-metrics') systemMetricsCache = {}
+      return true
+    }
+    return false
+  },
+
+  // Clear all storage
+  clear: (): boolean => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.clear()
+        return true
+      }
+    } catch {
+      // Clear in-memory storage
+      bugReportsCache = []
+      systemMetricsCache = {}
+      return true
+    }
+    return false
+  },
+}
+
+// Bug Tracking System
+export const BugTracker = {
+  // Log bug with details
+  logBug: (bug: {
+    id: string
+    severity: 'critical' | 'high' | 'medium' | 'low'
+    description: string
+    component: string
+    steps: string[]
+    expected: string
+    actual: string
+  }) => {
+    const bugs = storageUtils.get<any[]>('bug-reports') || []
+    const newBug = {
+      ...bug,
+      timestamp: new Date().toISOString(),
+      status: 'open' as const,
+      environment: {
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
+        url: typeof window !== 'undefined' ? window.location.href : 'Unknown',
+        timestamp: Date.now(),
+        viewport: typeof window !== 'undefined' ? {
+          width: window.innerWidth,
+          height: window.innerHeight
+        } : { width: 0, height: 0 }
+      }
+    }
+    
+    bugs.push(newBug)
+    storageUtils.set('bug-reports', bugs)
+    
+    console.error(`🐛 Bug logged: ${bug.severity.toUpperCase()} - ${bug.description}`)
+    return newBug
+  },
+
+  // Get all bugs
+  getBugs: () => {
+    return storageUtils.get<any[]>('bug-reports') || []
+  },
+
+  // Get bugs by status
+  getBugsByStatus: (status: 'open' | 'in-progress' | 'fixed' | 'closed') => {
+    const bugs = BugTracker.getBugs()
+    return bugs.filter((bug: any) => bug.status === status)
+  },
+
+  // Get bugs by severity
+  getBugsBySeverity: (severity: 'critical' | 'high' | 'medium' | 'low') => {
+    const bugs = BugTracker.getBugs()
+    return bugs.filter((bug: any) => bug.severity === severity)
+  },
+
+  // Mark bug as fixed
+  markFixed: (bugId: string) => {
+    const bugs = storageUtils.get<any[]>('bug-reports') || []
+    const updatedBugs = bugs.map((bug: any) => 
+      bug.id === bugId ? { 
+        ...bug, 
+        status: 'fixed', 
+        fixedAt: new Date().toISOString() 
+      } : bug
+    )
+    storageUtils.set('bug-reports', updatedBugs)
+    return updatedBugs.find((bug: any) => bug.id === bugId)
+  },
+
+  // Update bug status
+  updateStatus: (bugId: string, status: 'open' | 'in-progress' | 'fixed' | 'closed', notes?: string) => {
+    const bugs = storageUtils.get<any[]>('bug-reports') || []
+    const updatedBugs = bugs.map((bug: any) => 
+      bug.id === bugId ? { 
+        ...bug, 
+        status,
+        statusUpdatedAt: new Date().toISOString(),
+        statusNotes: notes 
+      } : bug
+    )
+    storageUtils.set('bug-reports', updatedBugs)
+    return updatedBugs.find((bug: any) => bug.id === bugId)
+  },
+
+  // Add comment to bug
+  addComment: (bugId: string, comment: string, author: string = 'System') => {
+    const bugs = storageUtils.get<any[]>('bug-reports') || []
+    const updatedBugs = bugs.map((bug: any) => {
+      if (bug.id === bugId) {
+        const comments = bug.comments || []
+        comments.push({
+          id: generateId(),
+          author,
+          comment,
+          timestamp: new Date().toISOString()
+        })
+        return { ...bug, comments }
+      }
+      return bug
+    })
+    storageUtils.set('bug-reports', updatedBugs)
+  },
+
+  // Get bug statistics
+  getStatistics: () => {
+    const bugs = BugTracker.getBugs()
+    const stats = {
+      total: bugs.length,
+      byStatus: {
+        open: bugs.filter((bug: any) => bug.status === 'open').length,
+        inProgress: bugs.filter((bug: any) => bug.status === 'in-progress').length,
+        fixed: bugs.filter((bug: any) => bug.status === 'fixed').length,
+        closed: bugs.filter((bug: any) => bug.status === 'closed').length
+      },
+      bySeverity: {
+        critical: bugs.filter((bug: any) => bug.severity === 'critical').length,
+        high: bugs.filter((bug: any) => bug.severity === 'high').length,
+        medium: bugs.filter((bug: any) => bug.severity === 'medium').length,
+        low: bugs.filter((bug: any) => bug.severity === 'low').length
+      },
+      recentBugs: bugs
+        .filter((bug: any) => {
+          const bugDate = new Date(bug.timestamp)
+          const weekAgo = new Date()
+          weekAgo.setDate(weekAgo.getDate() - 7)
+          return bugDate >= weekAgo
+        }).length
+    }
+    return stats
+  },
+
+  // Export bugs as JSON
+  exportBugs: () => {
+    const bugs = BugTracker.getBugs()
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      totalBugs: bugs.length,
+      bugs
+    }
+    return JSON.stringify(exportData, null, 2)
+  },
+
+  // Clear all bugs
+  clearBugs: () => {
+    storageUtils.remove('bug-reports')
+    console.log('🧹 All bug reports cleared')
+  }
+}
+
+// System Health Monitoring
+export const SystemHealth = {
+  // Check system health
+  checkHealth: () => {
+    const health = {
+      timestamp: new Date().toISOString(),
+      memory: typeof performance !== 'undefined' && (performance as any).memory 
+        ? (performance as any).memory.usedJSHeapSize 
+        : 0,
+      storage: {
+        localStorage: typeof localStorage !== 'undefined' ? localStorage.length : 0,
+        sessionStorage: typeof sessionStorage !== 'undefined' ? sessionStorage.length : 0,
+        bugReports: BugTracker.getBugs().length
+      },
+      browser: {
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
+        language: typeof navigator !== 'undefined' ? navigator.language : 'Unknown',
+        cookieEnabled: typeof navigator !== 'undefined' ? navigator.cookieEnabled : false,
+        onLine: typeof navigator !== 'undefined' ? navigator.onLine : true
+      },
+      viewport: typeof window !== 'undefined' ? {
+        width: window.innerWidth,
+        height: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio || 1
+      } : { width: 0, height: 0, devicePixelRatio: 1 },
+      performance: SystemHealth.getBasicMetrics()
+    }
+    
+    // Store health check
+    const healthHistory = storageUtils.get<any[]>('health-history') || []
+    healthHistory.push(health)
+    
+    // Keep only last 50 health checks
+    if (healthHistory.length > 50) {
+      healthHistory.splice(0, healthHistory.length - 50)
+    }
+    
+    storageUtils.set('health-history', healthHistory)
+    
+    return health
+  },
+
+  // Get basic performance metrics
+  getBasicMetrics: () => {
+    if (typeof performance === 'undefined') {
+      return {
+        pageLoad: 0,
+        domContentLoaded: 0,
+        firstPaint: 0,
+        firstContentfulPaint: 0
+      }
+    }
+
+    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming
+    
+    if (!navigation) {
+      return {
+        pageLoad: 0,
+        domContentLoaded: 0,
+        firstPaint: 0,
+        firstContentfulPaint: 0
+      }
+    }
+
+    return {
+      pageLoad: navigation.loadEventEnd - navigation.fetchStart,
+      domContentLoaded: navigation.domContentLoadedEventEnd - navigation.fetchStart,
+      firstPaint: performance.getEntriesByName('first-paint')[0]?.startTime || 0,
+      firstContentfulPaint: performance.getEntriesByName('first-contentful-paint')[0]?.startTime || 0
     }
   },
 
-  // Clear all localStorage
-  clear: (): boolean => {
-    try {
-      localStorage.clear()
-      return true
-    } catch {
-      return false
+  // Get detailed performance metrics
+  getDetailedMetrics: () => {
+    if (typeof performance === 'undefined') return {}
+
+    return {
+      navigation: performance.getEntriesByType('navigation'),
+      resources: performance.getEntriesByType('resource'),
+      measures: performance.getEntriesByType('measure'),
+      marks: performance.getEntriesByType('mark'),
+      paint: performance.getEntriesByType('paint')
     }
   },
+
+  // Monitor memory usage
+  getMemoryInfo: () => {
+    if (typeof performance === 'undefined' || !(performance as any).memory) {
+      return {
+        usedJSHeapSize: 0,
+        totalJSHeapSize: 0,
+        jsHeapSizeLimit: 0,
+        usedPercentage: 0
+      }
+    }
+
+    const memory = (performance as any).memory
+    return {
+      usedJSHeapSize: memory.usedJSHeapSize,
+      totalJSHeapSize: memory.totalJSHeapSize,
+      jsHeapSizeLimit: memory.jsHeapSizeLimit,
+      usedPercentage: Math.round((memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100)
+    }
+  },
+
+  // Get health history
+  getHealthHistory: () => {
+    return storageUtils.get<any[]>('health-history') || []
+  },
+
+  // Clear health history
+  clearHealthHistory: () => {
+    storageUtils.remove('health-history')
+    console.log('🧹 Health history cleared')
+  },
+
+  // Generate health report
+  generateReport: () => {
+    const currentHealth = SystemHealth.checkHealth()
+    const history = SystemHealth.getHealthHistory()
+    const bugStats = BugTracker.getStatistics()
+
+    const report = {
+      generatedAt: new Date().toISOString(),
+      summary: {
+        overallHealth: 'good', // This could be calculated based on various metrics
+        totalBugs: bugStats.total,
+        criticalBugs: bugStats.bySeverity.critical,
+        memoryUsage: SystemHealth.getMemoryInfo(),
+        recentHealthChecks: history.length
+      },
+      currentHealth,
+      bugStatistics: bugStats,
+      healthTrends: {
+        averagePageLoad: history.length > 0 
+          ? history.reduce((sum: number, h: any) => sum + (h.performance?.pageLoad || 0), 0) / history.length 
+          : 0,
+        memoryTrend: history.slice(-10).map((h: any) => h.memory || 0)
+      }
+    }
+
+    return report
+  }
+}
+
+// Error Boundary Helper
+export const ErrorBoundaryHelper = {
+  // Capture and log errors
+  captureError: (error: Error, errorInfo?: any, component?: string) => {
+    const errorReport = {
+      id: generateId(),
+      severity: 'high' as const,
+      description: error.message,
+      component: component || 'Unknown Component',
+      steps: ['Error occurred during component rendering or execution'],
+      expected: 'Component should render without errors',
+      actual: `Error: ${error.message}`,
+      stack: error.stack,
+      errorInfo,
+      timestamp: new Date().toISOString()
+    }
+
+    BugTracker.logBug(errorReport)
+    return errorReport
+  },
+
+  // Handle promise rejections
+  handleUnhandledRejection: (event: PromiseRejectionEvent) => {
+    const errorReport = {
+      id: generateId(),
+      severity: 'medium' as const,
+      description: `Unhandled Promise Rejection: ${event.reason}`,
+      component: 'Promise Handler',
+      steps: ['Promise was rejected without proper error handling'],
+      expected: 'All promises should have proper error handling',
+      actual: `Unhandled rejection: ${event.reason}`,
+      timestamp: new Date().toISOString()
+    }
+
+    BugTracker.logBug(errorReport)
+  }
 }
 
 // Async utilities
@@ -500,71 +868,23 @@ export const validationUtils = {
 export const deviceUtils = {
   // Check if mobile device
   isMobile: (): boolean => {
-    return window.innerWidth <= 768
+    return typeof window !== 'undefined' ? window.innerWidth <= 768 : false
   },
 
   // Check if tablet device
   isTablet: (): boolean => {
-    return window.innerWidth > 768 && window.innerWidth <= 1024
+    return typeof window !== 'undefined' ? window.innerWidth > 768 && window.innerWidth <= 1024 : false
   },
 
   // Check if desktop device
   isDesktop: (): boolean => {
-    return window.innerWidth > 1024
+    return typeof window !== 'undefined' ? window.innerWidth > 1024 : true
   },
 
   // Get device type
-  getDeviceType: (): 'mobile' | 'tablet' | 'desktop' => {
-    if (deviceUtils.isMobile()) return 'mobile'
-    if (deviceUtils.isTablet()) return 'tablet'
-    return 'desktop'
-  },
-
-  // Check if PWA is installed
-  isPWA: (): boolean => {
-    return window.matchMedia('(display-mode: standalone)').matches
-  },
-
-  // Check if online
-  isOnline: (): boolean => {
-    return navigator.onLine
-  },
-}
-
-// Generate unique ID
-export const generateId = (): string => {
-  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9)
-}
-
-// Copy text to clipboard
-export const copyToClipboard = async (text: string): Promise<boolean> => {
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    // Fallback for older browsers
-    const textArea = document.createElement('textarea')
-    textArea.value = text
-    document.body.appendChild(textArea)
-    textArea.focus()
-    textArea.select()
-    try {
-      document.execCommand('copy')
-      document.body.removeChild(textArea)
-      return true
-    } catch {
-      document.body.removeChild(textArea)
-      return false
-    }
+    getDeviceType: (): 'mobile' | 'tablet' | 'desktop' => {
+      if (deviceUtils.isMobile()) return 'mobile'
+      if (deviceUtils.isTablet()) return 'tablet'
+      return 'desktop'
+    },
   }
-}
-
-// Download file
-export const downloadFile = (url: string, filename: string): void => {
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}

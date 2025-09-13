@@ -1,13 +1,13 @@
 import { Navigate } from 'react-router-dom'
-import { useAuthContext } from '../../context/AuthContext'
-import { LoginForm } from '../../components/forms/LoginForm'
+import { useAuthContext } from '../context/AuthContext'
+import { LoginForm } from '../components/forms/LoginForm'
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '../../components/ui/card'
+} from '../components/ui/card'
 
 export function LoginPage() {
   const { isAuthenticated, loading } = useAuthContext()
